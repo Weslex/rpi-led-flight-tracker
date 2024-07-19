@@ -2,10 +2,12 @@ import socket
 from prettytable import PrettyTable
 import threading
 from collections import deque
+from typing import Dict
 
 
 class Aircraft_Table():
     def __init__(self):
+        #self.aircraft_table : Dict[str, Aircraft] = {}
         self.aircraft_table = {}
         self.total_messages = 0
         
@@ -21,44 +23,45 @@ class Aircraft_Table():
             self.aircraft_table[cur_hex].call_sign = msg_l[10]
 
         elif msg_l[1] == '2': 
-            self.aircraft_table[cur_hex].altitude = msg_l[11]
-            self.aircraft_table[cur_hex].ground_speed = msg_l[12]
-            self.aircraft_table[cur_hex].track = msg_l[13]
-            self.aircraft_table[cur_hex].latitude = msg_l[14]
-            self.aircraft_table[cur_hex].longitude = msg_l[15]
-            self.aircraft_table[cur_hex].on_ground = msg_l[21]
+            self.aircraft_table[cur_hex].ground_speed = int(msg_l[12]) if msg_l[12] else 0
+            self.aircraft_table[cur_hex].track = int(msg_l[13]) if msg_l[13] else 0
+            self.aircraft_table[cur_hex].latitude = float(msg_l[14]) if msg_l[14] else 0.0
+            self.aircraft_table[cur_hex].longitude = float(msg_l[15]) if msg_l[15] else 0.0
+            self.aircraft_table[cur_hex].on_ground = bool(msg_l[21])
 
         elif msg_l[1] == '3': 
-            self.aircraft_table[cur_hex].altitude = msg_l[11] 
-            self.aircraft_table[cur_hex].latitude = msg_l[14]
-            self.aircraft_table[cur_hex].longitude = msg_l[15]
-            self.aircraft_table[cur_hex].emergency = msg_l[19]
-            self.aircraft_table[cur_hex].on_ground = msg_l[21]
+            self.aircraft_table[cur_hex].altitude = int(msg_l[11]) if msg_l[11] else 0
+            self.aircraft_table[cur_hex].latitude = float(msg_l[14]) if msg_l[14] else 0.0
+            self.aircraft_table[cur_hex].longitude = float(msg_l[15]) if msg_l[15] else 0.0
+            self.aircraft_table[cur_hex].emergency = bool(msg_l[19])
+            self.aircraft_table[cur_hex].on_ground = bool(msg_l[21]) 
 
         elif msg_l[1] == '4':
-            self.aircraft_table[cur_hex].ground_speed = msg_l[12]
-            self.aircraft_table[cur_hex].track = msg_l[13]
-            self.aircraft_table[cur_hex].vertical_rate = msg_l[16]
+            self.aircraft_table[cur_hex].ground_speed = int(msg_l[12]) if msg_l[12] else 0
+            self.aircraft_table[cur_hex].track = int(msg_l[13]) if msg_l[13] else 0
+            self.aircraft_table[cur_hex].vertical_rate = int(msg_l[16]) if msg_l[16] else 0
 
         elif msg_l[1] == '5':
-            self.aircraft_table[cur_hex].altitude = msg_l[11]
-            self.aircraft_table[cur_hex].on_ground = msg_l[21]
+            self.aircraft_table[cur_hex].altitude = int(msg_l[11]) if msg_l[11] else 0
+            self.aircraft_table[cur_hex].on_ground = bool(msg_l[21])
 
         elif msg_l[1] == '6':
-            self.aircraft_table[cur_hex].altitude = msg_l[11]
+            self.aircraft_table[cur_hex].altitude = int(msg_l[11]) if msg_l[11] else 0 
             self.aircraft_table[cur_hex].squawk = msg_l[17]
-            self.aircraft_table[cur_hex].emergency = msg_l[19]
-            self.aircraft_table[cur_hex].on_ground = msg_l[21]
+            self.aircraft_table[cur_hex].emergency = bool(msg_l[19]) 
+            self.aircraft_table[cur_hex].on_ground = bool(msg_l[21])
         
         elif msg_l[1] == '7':
-            self.aircraft_table[cur_hex].altitude = msg_l[11]
-            self.aircraft_table[cur_hex].on_ground = msg_l[21]
+            self.aircraft_table[cur_hex].altitude = int(msg_l[11]) if msg_l[11] else 0
+            self.aircraft_table[cur_hex].on_ground = bool(msg_l[21])
 
         elif msg_l[1] == '8':
-            self.aircraft_table[cur_hex].on_ground = msg_l[21]
-
+            self.aircraft_table[cur_hex].on_ground = bool(msg_l[21])
 
         self.total_messages += 1 
+
+    def __iter__(self):
+        return self.aircraft_table
         
 class Aircraft():
     def __init__(self, hex_ident: str):
@@ -84,26 +87,42 @@ class Aircraft():
 class End_Tasks_Flag():
     def __init__(self, state: bool):
         self.flag = state
-def receive_data(rdl_soc, data_queue, exit_flag):
-    while not exit_flag.flag: 
-        rdl_msg_b = rdl_soc.recv(2048)
-        rdl_msg = rdl_msg_b.decode()
-        rdl_msg = rdl_msg[:-1]
 
-        sbs_msgs = rdl_msg.split('\n')
+class Receive_Data_Thread(threading.Thread):
+    def __init__(self, rdl_soc : socket.socket, data_queue : deque, exit_flag : End_Tasks_Flag):
+        super().__init__()
+        self.rdl_soc = rdl_soc
+        self.data_queue = data_queue
+        self.exit_flag = exit_flag
 
-        for msg in sbs_msgs:
-            data_queue.append(msg)
+    def run(self):
+        while not self.exit_flag.flag:
+            rdl_msg_b = self.rdl_soc.recv(2048)
+            rdl_msg = rdl_msg_b.decode()
+            rdl_msg = rdl_msg[:-1]
+
+            sbs_msgs = rdl_msg.split('\n')
+
+            for msg in sbs_msgs:
+                self.data_queue.append(msg)
 
 
-def process_data(aircraft: Aircraft_Table, data_queue: deque, exit_flag: End_Tasks_Flag):
-    while not exit_flag.flag:
-        if len(data_queue) == 0:
-            continue
 
-        msg = data_queue.pop()
-        aircraft.process_msg(msg)
-        
+class Process_Data_Thread(threading.Thread):
+    def __init__(self, aircraft : Aircraft_Table, data_queue : deque, exit_flag : End_Tasks_Flag):
+        threading.Thread.__init__(self)
+        self.aircraft = aircraft
+        self.data_queue = data_queue
+        self.exit_flag = exit_flag
+    
+    def run(self):
+        while not self.exit_flag.flag:
+            if len(self.data_queue) == 0:
+                continue
+
+            msg = self.data_queue.pop()
+            self.aircraft.process_msg(msg)
+
 def main():
 
     exit_flag = End_Tasks_Flag(False)
@@ -113,11 +132,9 @@ def main():
     
     data_queue = deque()
     aircraft = Aircraft_Table()
-
     
-    
-    listen_thread = threading.Thread(target=receive_data, args=(rdl_soc, data_queue, exit_flag))
-    process_thread = threading.Thread(target=process_data, args=(aircraft, data_queue, exit_flag))
+    listen_thread = Process_Data_Thread(aircraft, data_queue, exit_flag)
+    process_thread = Receive_Data_Thread(rdl_soc, data_queue, exit_flag)
 
     listen_thread.start()
     process_thread.start()
@@ -140,6 +157,5 @@ def main():
 if __name__ == "__main__":
     main()
             
-
 
 
