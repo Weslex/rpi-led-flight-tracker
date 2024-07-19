@@ -34,6 +34,7 @@ class FlightTrackerConfig():
         self.base_longitude = -86.389409
         self.mapping_box_width_mi: float = 20.0
         self.mapping_box_height_mi: float = 20.0
+        self.icons = (((-1, 1), (1, -1)), ((-1, 0), (0, 1)), ((-1, -1), (-1, 1)), ((0, -1), (-1, 0)), ((1, -1), (-1, -1)), ((-1, 0), (0, -1)), ((1, 1), (1, -1)), ((1, 0), (0, 1)))
 
 class FlightTracker():
     def __init__(self, config):
@@ -69,6 +70,7 @@ class FlightTracker():
 
         dist_to_corner = (((self.mapping_box_width/2) ** 2) + ((self.mapping_box_height/2) ** 2)) ** 0.5
         self.reference_point = geopy.distance.distance(miles=dist_to_corner).destination((self.center_lat, self.center_lon), bearing=225)
+        self.icons = config.icons
         
         
     def start_data_processing(self):
@@ -94,24 +96,41 @@ class FlightTracker():
         return (y_pos, x_pos) 
     
     def plot_aircraft(self):
-        aircraft_mapping = np.zeros([self.rows, self.cols], dtype=int)
         canvas = self.matrix.CreateFrameCanvas()
         count = 1
         for icao_code in self.aircraft_table.aircraft_table.keys():
             aircraft = self.aircraft_table.aircraft_table[icao_code]
             pos = self.calc_aircraft_pos(aircraft.latitude, aircraft.longitude)
-            canvas.SetPixel(pos[0], pos[1], 255, 255, 255) 
 
             if pos[0] >= 0 and pos[1] >= 0:
-                aircraft_mapping[pos] = count
+                canvas.SetPixel(pos[0], pos[1], 255, 255, 255) 
                 print(count, icao_code)
                 count += 1
 
         return canvas
     def run_display(self):
         while True:
+            data_processing.wrt.acquire()
+            data_processing.reader_count += 1
+            if data_processing.reader_count == 1:
+                data_processing.mutex.acquire()
+
+            data_processing.mutex.release()
             self.matrix.SwapOnVSync(self.plot_aircraft())
+            data_processing.mutex.acquire()
+            if data_processing.reader_count == 1:
+                data_processing.wrt.release()
+
+            data_processing.mutex.release()
             time.sleep(10)
+
+    def plot_aircraft_icons(self, x_pos, y_pos, canvas, aircraft):
+        tracks = [0, 45, 90, 135, 180, 225, 270, 315]
+        tracks = np.array(tracks)
+        nearest_track_ind = np.argmin(np.absolute(tracks - aircraft.track))
+
+        
+
 
     def shutdown(self):
         self.shutdown_data_processing.flag = True

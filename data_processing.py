@@ -4,6 +4,9 @@ import threading
 from collections import deque
 from typing import Dict
 
+wrt = threading.Semaphore()
+mutex = threading.Semaphore()
+reader_count = 0
 
 class Aircraft_Table():
     def __init__(self):
@@ -121,7 +124,9 @@ class Process_Data_Thread(threading.Thread):
                 continue
 
             msg = self.data_queue.pop()
+            wrt.acquire()
             self.aircraft.process_msg(msg)
+            wrt.release()
 
 def main():
 
