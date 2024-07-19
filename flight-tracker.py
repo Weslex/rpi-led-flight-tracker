@@ -4,6 +4,7 @@ import data_processing
 from collections import deque
 import socket
 import geopy.distance
+import time
 """
     - The first problem to tackle is going to be getting the aircraft currently
     being detected and ploting where they should be located on the 128x128 
@@ -17,8 +18,8 @@ import geopy.distance
 class FlightTrackerConfig():
     def __init__(self):
         # Display configuration 
-        self.rows : int = 20
-        self.cols : int = 20
+        self.rows : int = 128
+        self.cols : int = 128
         self.gpio_slowdown : int = 4
         self.pwm_dither_bits : int = 2
         self.pwm_bits : int = 11
@@ -27,7 +28,7 @@ class FlightTrackerConfig():
         self.pixel_mapper_config : str = "U-mapper;Rotate:180"
 
         # Flight tracking configuration
-        self.dump1090_host: str = '10.0.0.64'
+        self.dump1090_host: str = 'localhost'
         self.dump1090_port : int = 30003
         self.base_latitude = 35.852598
         self.base_longitude = -86.389409
@@ -94,18 +95,23 @@ class FlightTracker():
     
     def plot_aircraft(self):
         aircraft_mapping = np.zeros([self.rows, self.cols], dtype=int)
+        canvas = self.matrix.CreateFrameCanvas()
         count = 1
         for icao_code in self.aircraft_table.aircraft_table.keys():
             aircraft = self.aircraft_table.aircraft_table[icao_code]
             pos = self.calc_aircraft_pos(aircraft.latitude, aircraft.longitude)
-            
+            canvas.SetPixel(pos[0], pos[1], 255, 255, 255) 
 
             if pos[0] >= 0 and pos[1] >= 0:
                 aircraft_mapping[pos] = count
                 print(count, icao_code)
                 count += 1
 
-        return aircraft_mapping
+        return canvas
+    def run_display(self):
+        while True:
+            self.matrix.SwapOnVSync(self.plot_aircraft())
+            time.sleep(10)
 
     def shutdown(self):
         self.shutdown_data_processing.flag = True
@@ -119,15 +125,7 @@ if __name__ == "__main__":
     tracker.start_data_processing()
     
     try:
-        while True:
-            inp = input(">")
-            if inp == "ls":
-                mapping = tracker.plot_aircraft()
-                print(mapping)
-            if inp == "exit":
-                print("Shutting Down")
-                tracker.shutdown()
-                break
+        tracker.run_display() 
     except Exception as e:
         tracker.shutdown()
         print(e)
