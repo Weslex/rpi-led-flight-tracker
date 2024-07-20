@@ -43,8 +43,8 @@ class FlightTracker():
         self.cols = config.cols
         
         self.display_config = RGBMatrixOptions()
-        self.display_config.rows = config.rows
-        self.display_config.cols = config.cols
+        self.display_config.rows = 64
+        self.display_config.cols = 64
         self.display_config.gpio_slowdown = config.gpio_slowdown
         self.display_config.pwm_dither_bits = config.pwm_dither_bits
         self.display_config.pwm_bits = config.pwm_bits
@@ -89,7 +89,7 @@ class FlightTracker():
 
         x_pos = round((dist_x / self.mapping_box_width) * self.cols)
         y_pos = round((dist_y / self.mapping_box_height) * self.rows)
-        y_pos = self.rows - y_pos
+        #y_pos = self.rows - y_pos
         
         if x_pos >= self.cols or y_pos >= self.rows:
             return (-1, -1)
@@ -103,7 +103,7 @@ class FlightTracker():
             pos = self.calc_aircraft_pos(aircraft.latitude, aircraft.longitude)
 
             if pos[0] >= 0 and pos[1] >= 0:
-                canvas.SetPixel(pos[0], pos[1], 255, 255, 255) 
+                self.plot_aircraft_icons(pos[0], pos[1], canvas, aircraft)
                 print(count, icao_code)
                 count += 1
 
@@ -125,9 +125,31 @@ class FlightTracker():
             time.sleep(10)
 
     def plot_aircraft_icons(self, x_pos, y_pos, canvas, aircraft):
-        tracks = [0, 45, 90, 135, 180, 225, 270, 315]
+        tracks = [0, 45, 90, 135, 180, 225, 270, 315, 360]
         tracks = np.array(tracks)
         nearest_track_ind = np.argmin(np.absolute(tracks - aircraft.track))
+        if nearest_track_ind == 8:
+            nearest_track_ind = 0
+
+        icon_format = self.icons[nearest_track_ind]
+
+        leg1 = icon_format[0]
+        leg2 = icon_format[1]
+
+        x1 = leg1[0] + x_pos
+        x2 = leg2[0] + x_pos
+        y1 = leg1[1] + y_pos
+        y2 = leg2[1] + y_pos
+
+        canvas.SetPixel(x_pos, y_pos, 255, 255, 255)
+        
+        if x1 >= 0 and x1 < self.cols and y1 >= 0 and y1 < self.rows:
+            canvas.SetPixel(x1, y1, 255, 255, 255)
+
+        if x2 >= 0 and x2 < self.cols and y2 >= 0 and y2 < self.rows:
+            canvas.SetPixel(x2, y2, 255, 255, 255)
+
+        return canvas
 
         
 
