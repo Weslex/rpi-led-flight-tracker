@@ -32,9 +32,9 @@ class FlightTrackerConfig():
         self.dump1090_port : int = 30003
         self.base_latitude = 35.852598
         self.base_longitude = -86.389409
-        self.mapping_box_width_mi: float = 20.0
-        self.mapping_box_height_mi: float = 20.0
-        self.icons = (((-1, 1), (1, -1)), ((-1, 0), (0, 1)), ((-1, -1), (-1, 1)), ((0, -1), (-1, 0)), ((1, -1), (-1, -1)), ((-1, 0), (0, -1)), ((1, 1), (1, -1)), ((1, 0), (0, 1)))
+        self.mapping_box_width_mi: float = 50.0
+        self.mapping_box_height_mi: float = 50.0
+        self.icons = (((-1, 1), (-1, -1)), ((-1, 0), (0, 1)), ((-1, -1), (-1, 1)), ((0, -1), (-1, 0)), ((1, -1), (-1, -1)), ((-1, 0), (0, -1)), ((1, 1), (1, -1)), ((1, 0), (0, 1)))
 
 class FlightTracker():
     def __init__(self, config):
@@ -108,6 +108,35 @@ class FlightTracker():
                 count += 1
 
         return canvas
+
+    def get_color_from_altitude(self, alt):
+        #colors = ((255, 0, 0), (255, 255, 0), (0, 255, 0), (0, 255, 255), (0, 255, 0), (255, 255, 0))
+
+        if alt < 1000:
+            return (255, int((alt/1000) * 255), 0)
+        
+        if alt < 5000:
+            alt_prop = (alt - 1000) / 5000
+            return (int(255 - (alt_prop * 255)), 255, 0)
+
+        if alt < 10000:
+            alt_prop = (alt - 5000) / 5000
+            return (0, 255, int(alt_prop * 255))
+
+        if alt < 30000:
+            alt_prop = (alt - 10000) / 20000
+            return (0, int(255 - (alt_prop * 255)), 255)
+
+        else: 
+            alt_prop = (alt - 30000) / 60000
+            if alt_prop > 1:
+                alt_prop = 1.0
+
+            return (int(255 * alt_prop), 0, 255)
+
+        
+
+        
     def run_display(self):
         while True:
             data_processing.wrt.acquire()
@@ -122,7 +151,7 @@ class FlightTracker():
                 data_processing.wrt.release()
 
             data_processing.mutex.release()
-            time.sleep(10)
+            time.sleep(1)
 
     def plot_aircraft_icons(self, x_pos, y_pos, canvas, aircraft):
         tracks = [0, 45, 90, 135, 180, 225, 270, 315, 360]
@@ -133,6 +162,8 @@ class FlightTracker():
 
         icon_format = self.icons[nearest_track_ind]
 
+        color = self.get_color_from_altitude(aircraft.altitude)
+
         leg1 = icon_format[0]
         leg2 = icon_format[1]
 
@@ -141,13 +172,13 @@ class FlightTracker():
         y1 = leg1[1] + y_pos
         y2 = leg2[1] + y_pos
 
-        canvas.SetPixel(x_pos, y_pos, 255, 255, 255)
+        canvas.SetPixel(x_pos, y_pos, color[0], color[1], color[2])
         
         if x1 >= 0 and x1 < self.cols and y1 >= 0 and y1 < self.rows:
-            canvas.SetPixel(x1, y1, 255, 255, 255)
+            canvas.SetPixel(x1, y1, color[0], color[1], color[2])
 
         if x2 >= 0 and x2 < self.cols and y2 >= 0 and y2 < self.rows:
-            canvas.SetPixel(x2, y2, 255, 255, 255)
+            canvas.SetPixel(x2, y2, color[0], color[1], color[2])
 
         return canvas
 
