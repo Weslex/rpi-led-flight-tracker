@@ -3,6 +3,7 @@ from prettytable import PrettyTable
 import threading
 from collections import deque
 from typing import Dict
+import time
 
 wrt = threading.Semaphore()
 mutex = threading.Semaphore()
@@ -18,6 +19,7 @@ class Aircraft_Table():
     def process_msg(self, msg: str):
         msg_l = msg.split(",")
         cur_hex = msg_l[4] 
+        self.aircraft_table[cur_hex].upated = time.time()
         if self.aircraft_table.get(cur_hex) is None:
             #print("New Aircraft " + cur_hex)
             self.aircraft_table[cur_hex] = Aircraft(cur_hex)
@@ -62,6 +64,12 @@ class Aircraft_Table():
             self.aircraft_table[cur_hex].on_ground = bool(msg_l[21])
 
         self.total_messages += 1 
+    def purge_old_aircraft(self):
+        cur_time = time.time()
+        for key in self.aircraft_table.keys():
+            if (cur_time - self.aircraft_table[key]) > 60:
+                del self.aircraft_table[key]
+
 
     def __iter__(self):
         return self.aircraft_table
@@ -79,6 +87,7 @@ class Aircraft():
         self.squawk: str = ""
         self.emergency: bool = False
         self.on_ground: bool = False
+        self.updated = time.time()
 
     def serialize(self) -> list:
         return [self.hex_ident, self.call_sign, self.altitude, self.ground_speed, self.track, self.latitude, self.longitude]

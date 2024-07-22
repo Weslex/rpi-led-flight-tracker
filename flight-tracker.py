@@ -18,14 +18,16 @@ import time
 class FlightTrackerConfig():
     def __init__(self):
         # Display configuration 
-        self.rows : int = 128
-        self.cols : int = 128
+        self.total_rows : int = 128
+        self.total_cols : int = 128
         self.gpio_slowdown : int = 4
         self.pwm_dither_bits : int = 2
         self.pwm_bits : int = 11
         self.chain_length : int = 4
         self.parallel : int = 1
-        self.pixel_mapper_config : str = "U-mapper;Rotate:180"
+        self.pixel_mapper_config : str = "U-mapper;Rotate:-90"
+        self.rows_per_display : int = 64
+        self.cols_per_display : int = 64
 
         # Flight tracking configuration
         self.dump1090_host: str = 'localhost'
@@ -34,17 +36,18 @@ class FlightTrackerConfig():
         self.base_longitude = -86.389409
         self.mapping_box_width_mi: float = 50.0
         self.mapping_box_height_mi: float = 50.0
-        self.icons = (((-1, 1), (-1, -1)), ((-1, 0), (0, 1)), ((-1, -1), (-1, 1)), ((0, -1), (-1, 0)), ((1, -1), (-1, -1)), ((-1, 0), (0, -1)), ((1, 1), (1, -1)), ((1, 0), (0, 1)))
+        self.icons = (((1, 1), (1, -1)), ((-1, 0), (0, 1)), ((-1, -1), (-1, 1)), ((0, -1), (-1, 0)), ((1, -1), (-1, -1)), ((1, 0), (0, -1)), ((1, 1), (1, -1)), ((1, 0), (0, 1)))
 
 class FlightTracker():
     def __init__(self, config):
         self.config = config
-        self.rows = config.rows
-        self.cols = config.cols
+        self.rows = config.total_rows
+        self.cols = config.total_cols
         
+        # Set up RGBMatrixOptions attributes
         self.display_config = RGBMatrixOptions()
-        self.display_config.rows = 64
-        self.display_config.cols = 64
+        self.display_config.rows = config.rows_per_display
+        self.display_config.cols = config.cols_per_display
         self.display_config.gpio_slowdown = config.gpio_slowdown
         self.display_config.pwm_dither_bits = config.pwm_dither_bits
         self.display_config.pwm_bits = config.pwm_bits
@@ -52,12 +55,21 @@ class FlightTracker():
         self.display_config.parallel = config.parallel
         self.display_config.pixel_mapper_config = config.pixel_mapper_config
 
+
+        # Create matrix object
         self.matrix: RGBMatrix = RGBMatrix(options = self.display_config)
+
+        # Create two frame canvases for double buffering 
+        self.canvas_0 = self.matrix.CreateFrameCanvas()
+        self.canvas_1 = self.matrix.CreateFrameCanvas()
+        self.use_second_canvas = False 
        
+        # Aircraft table to record data on each aircraft
         self.aircraft_table = data_processing.Aircraft_Table()
         self.data_queue = deque()
 
         
+        # Socket for connecting to dump1090 
         self.rdl_soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         self.shutdown_data_processing = data_processing.End_Tasks_Flag(False)
@@ -68,6 +80,7 @@ class FlightTracker():
         self.mapping_box_width = config.mapping_box_width_mi
         self.mapping_box_height = config.mapping_box_height_mi
 
+        # Calculate reference point to measure the position of aircraft in reference to 
         dist_to_corner = (((self.mapping_box_width/2) ** 2) + ((self.mapping_box_height/2) ** 2)) ** 0.5
         self.reference_point = geopy.distance.distance(miles=dist_to_corner).destination((self.center_lat, self.center_lon), bearing=225)
         self.icons = config.icons
@@ -84,28 +97,36 @@ class FlightTracker():
         if lat < self.reference_point.latitude or lon < self.reference_point.longitude:
             return (-1, -1) 
 
+        # Calculate the horizontal and vertical distance from the reference point
         dist_x = geopy.distance.distance(self.reference_point, geopy.Point(self.reference_point.latitude, lon)).miles
         dist_y = geopy.distance.distance(self.reference_point, geopy.Point(lat, self.reference_point.longitude)).miles
 
+        # Round to the nearest pixel
         x_pos = round((dist_x / self.mapping_box_width) * self.cols)
         y_pos = round((dist_y / self.mapping_box_height) * self.rows)
-        #y_pos = self.rows - y_pos
-        
+        y_pos = self.rows - y_pos
+       
+        # Ensure that rounding did not put the aircraft outside of bounds
         if x_pos >= self.cols or y_pos >= self.rows:
             return (-1, -1)
-        return (y_pos, x_pos) 
+
+        return (x_pos, y_pos) 
     
     def plot_aircraft(self):
-        canvas = self.matrix.CreateFrameCanvas()
-        count = 1
+        if not self.use_second_canvas:
+            canvas = self.canvas_0
+        else:
+            canvas = self.canvas_1
+
+        canvas.Clear()
         for icao_code in self.aircraft_table.aircraft_table.keys():
             aircraft = self.aircraft_table.aircraft_table[icao_code]
             pos = self.calc_aircraft_pos(aircraft.latitude, aircraft.longitude)
 
             if pos[0] >= 0 and pos[1] >= 0:
                 self.plot_aircraft_icons(pos[0], pos[1], canvas, aircraft)
-                print(count, icao_code)
-                count += 1
+
+        self.use_second_canvas = not self.use_second_canvas
 
         return canvas
 
@@ -133,11 +154,9 @@ class FlightTracker():
                 alt_prop = 1.0
 
             return (int(255 * alt_prop), 0, 255)
-
-        
-
         
     def run_display(self):
+        count = 0
         while True:
             data_processing.wrt.acquire()
             data_processing.reader_count += 1
@@ -151,7 +170,13 @@ class FlightTracker():
                 data_processing.wrt.release()
 
             data_processing.mutex.release()
+
+            count += 1
+
+            if count == 60:
+                self.aircraft_table.purge_old_aircraft()
             time.sleep(1)
+
 
     def plot_aircraft_icons(self, x_pos, y_pos, canvas, aircraft):
         tracks = [0, 45, 90, 135, 180, 225, 270, 315, 360]
@@ -182,9 +207,6 @@ class FlightTracker():
 
         return canvas
 
-        
-
-
     def shutdown(self):
         self.shutdown_data_processing.flag = True
         self.receive_data_thread.join()
@@ -200,6 +222,5 @@ if __name__ == "__main__":
         tracker.run_display() 
     except Exception as e:
         tracker.shutdown()
-        print(e)
         
 
