@@ -19,10 +19,12 @@ class Aircraft_Table():
     def process_msg(self, msg: str):
         msg_l = msg.split(",")
         cur_hex = msg_l[4] 
-        self.aircraft_table[cur_hex].upated = time.time()
         if self.aircraft_table.get(cur_hex) is None:
             print("New Aircraft " + cur_hex)
             self.aircraft_table[cur_hex] = Aircraft(cur_hex)
+
+
+        self.aircraft_table[cur_hex].updated = time.time()
 
         if msg_l[1] == '1': 
             self.aircraft_table[cur_hex].call_sign = msg_l[10]
@@ -64,11 +66,18 @@ class Aircraft_Table():
             self.aircraft_table[cur_hex].on_ground = bool(msg_l[21])
 
         self.total_messages += 1 
+
+
     def purge_old_aircraft(self):
         cur_time = time.time()
+        deletable = []
         for key in self.aircraft_table.keys():
-            if (cur_time - self.aircraft_table[key]) > 60:
-                del self.aircraft_table[key]
+            if (cur_time - self.aircraft_table[key].updated) > 60:
+                deletable.append(key)
+
+        for key in deletable:
+            del self.aircraft_table[key]
+
 
 
     def __iter__(self):

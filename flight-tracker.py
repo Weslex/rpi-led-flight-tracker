@@ -5,6 +5,7 @@ from collections import deque
 import socket
 import geopy.distance
 import time
+import traceback
 """
     - The first problem to tackle is going to be getting the aircraft currently
     being detected and ploting where they should be located on the 128x128 
@@ -171,6 +172,7 @@ class FlightTracker():
 
             if count == 60:
                 self.aircraft_table.purge_old_aircraft()
+                count = 0 
             time.sleep(1)
 
 
@@ -221,7 +223,8 @@ if __name__ == "__main__":
     
     try:
         tracker.run_display() 
-    except Exception as e:
+    except:
         tracker.shutdown()
+        traceback.print_exc()
         
 
