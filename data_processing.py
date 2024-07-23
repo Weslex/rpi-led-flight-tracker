@@ -21,7 +21,7 @@ class Aircraft_Table():
         cur_hex = msg_l[4] 
         self.aircraft_table[cur_hex].upated = time.time()
         if self.aircraft_table.get(cur_hex) is None:
-            #print("New Aircraft " + cur_hex)
+            print("New Aircraft " + cur_hex)
             self.aircraft_table[cur_hex] = Aircraft(cur_hex)
 
         if msg_l[1] == '1': 
@@ -101,14 +101,14 @@ class End_Tasks_Flag():
         self.flag = state
 
 class Receive_Data_Thread(threading.Thread):
-    def __init__(self, rdl_soc : socket.socket, data_queue : deque, exit_flag : End_Tasks_Flag):
+    def __init__(self, rdl_soc : socket.socket, data_queue : deque):
         super().__init__()
         self.rdl_soc = rdl_soc
         self.data_queue = data_queue
-        self.exit_flag = exit_flag
+        self.exit_flag = threading.Event()
 
     def run(self):
-        while not self.exit_flag.flag:
+        while not self.is_stopped():
             rdl_msg_b = self.rdl_soc.recv(2048)
             rdl_msg = rdl_msg_b.decode()
             rdl_msg = rdl_msg[:-1]
@@ -118,17 +118,23 @@ class Receive_Data_Thread(threading.Thread):
             for msg in sbs_msgs:
                 self.data_queue.append(msg)
 
+    def stop(self):
+        self.exit_flag.set()
+
+    def is_stopped(self):
+        return self.exit_flag.is_set()
+
 
 
 class Process_Data_Thread(threading.Thread):
-    def __init__(self, aircraft : Aircraft_Table, data_queue : deque, exit_flag : End_Tasks_Flag):
+    def __init__(self, aircraft : Aircraft_Table, data_queue : deque):
         threading.Thread.__init__(self)
         self.aircraft = aircraft
         self.data_queue = data_queue
-        self.exit_flag = exit_flag
+        self.exit_flag = threading.Event()
     
     def run(self):
-        while not self.exit_flag.flag:
+        while not self.is_stopped():
             if len(self.data_queue) == 0:
                 continue
 
@@ -137,23 +143,29 @@ class Process_Data_Thread(threading.Thread):
             self.aircraft.process_msg(msg)
             wrt.release()
 
-def main():
+    def stop(self):
+        self.exit_flag.set()
 
-    exit_flag = End_Tasks_Flag(False)
+    def is_stopped(self):
+        return self.exit_flag.is_set()
+
+def main():
 
     rdl_soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     rdl_soc.connect(("10.0.0.64", 30003))
     
     data_queue = deque()
     aircraft = Aircraft_Table()
+
+    exit_flag = False
     
-    listen_thread = Process_Data_Thread(aircraft, data_queue, exit_flag)
-    process_thread = Receive_Data_Thread(rdl_soc, data_queue, exit_flag)
+    listen_thread = Process_Data_Thread(aircraft, data_queue)
+    process_thread = Receive_Data_Thread(rdl_soc, data_queue)
 
     listen_thread.start()
     process_thread.start()
 
-    while not exit_flag.flag:
+    while not exit_flag:
         usr_in = input(">")
 
         if usr_in == 'ls':
@@ -164,9 +176,11 @@ def main():
                 tab.add_row(aircraft_obj.serialize())
             print(tab)
         elif usr_in == 'exit':
-            exit_flag.flag = True
+            listen_thread.stop()
+            process_thread.stop()
             listen_thread.join()
             process_thread.join()
+            exit_flag = True
             
 if __name__ == "__main__":
     main()

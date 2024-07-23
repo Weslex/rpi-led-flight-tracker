@@ -36,7 +36,9 @@ class FlightTrackerConfig():
         self.base_longitude = -86.389409
         self.mapping_box_width_mi: float = 50.0
         self.mapping_box_height_mi: float = 50.0
-        self.icons = (((1, 1), (1, -1)), ((-1, 0), (0, 1)), ((-1, -1), (-1, 1)), ((0, -1), (-1, 0)), ((1, -1), (-1, -1)), ((1, 0), (0, -1)), ((1, 1), (1, -1)), ((1, 0), (0, 1)))
+        self.icons = (((1, 1), (-1, 1)), ((-1, 0), (0, 1)), ((-1, -1), (-1, 1)), ((0, -1), (-1, 0)), ((1, -1), (-1, -1)), ((1, 0), (0, -1)), ((1, 1), (1, -1)), ((1, 0), (0, 1)))
+
+        self.airports = ((35.8786583,-86.3774708), (36.0089703,-86.5200897))
 
 class FlightTracker():
     def __init__(self, config):
@@ -72,9 +74,8 @@ class FlightTracker():
         # Socket for connecting to dump1090 
         self.rdl_soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        self.shutdown_data_processing = data_processing.End_Tasks_Flag(False)
-        self.receive_data_thread = data_processing.Receive_Data_Thread(self.rdl_soc, self.data_queue, self.shutdown_data_processing)
-        self.process_data_thread = data_processing.Process_Data_Thread(self.aircraft_table, self.data_queue, self.shutdown_data_processing)
+        self.receive_data_thread = data_processing.Receive_Data_Thread(self.rdl_soc, self.data_queue)
+        self.process_data_thread = data_processing.Process_Data_Thread(self.aircraft_table, self.data_queue)
         self.center_lat = config.base_latitude
         self.center_lon = config.base_longitude
         self.mapping_box_width = config.mapping_box_width_mi
@@ -91,7 +92,7 @@ class FlightTracker():
         self.receive_data_thread.start()
         self.process_data_thread.start()
 
-    def calc_aircraft_pos(self, lat: float, lon: float):
+    def latlon_to_xy(self, lat: float, lon: float):
         
         # check if the aircraft is outside of the mapping box 
         if lat < self.reference_point.latitude or lon < self.reference_point.longitude:
@@ -112,7 +113,8 @@ class FlightTracker():
 
         return (x_pos, y_pos) 
     
-    def plot_aircraft(self):
+    def plot_objects(self):
+        # Alternate between two different frame canvases
         if not self.use_second_canvas:
             canvas = self.canvas_0
         else:
@@ -121,7 +123,7 @@ class FlightTracker():
         canvas.Clear()
         for icao_code in self.aircraft_table.aircraft_table.keys():
             aircraft = self.aircraft_table.aircraft_table[icao_code]
-            pos = self.calc_aircraft_pos(aircraft.latitude, aircraft.longitude)
+            pos = self.latlon_to_xy(aircraft.latitude, aircraft.longitude)
 
             if pos[0] >= 0 and pos[1] >= 0:
                 self.plot_aircraft_icons(pos[0], pos[1], canvas, aircraft)
@@ -129,6 +131,9 @@ class FlightTracker():
         self.use_second_canvas = not self.use_second_canvas
 
         return canvas
+
+    def plot_non_aircraft(self, canvas):
+        pass
 
     def get_color_from_altitude(self, alt):
         #colors = ((255, 0, 0), (255, 255, 0), (0, 255, 0), (0, 255, 255), (0, 255, 0), (255, 255, 0))
@@ -159,17 +164,8 @@ class FlightTracker():
         count = 0
         while True:
             data_processing.wrt.acquire()
-            data_processing.reader_count += 1
-            if data_processing.reader_count == 1:
-                data_processing.mutex.acquire()
-
-            data_processing.mutex.release()
-            self.matrix.SwapOnVSync(self.plot_aircraft())
-            data_processing.mutex.acquire()
-            if data_processing.reader_count == 1:
-                data_processing.wrt.release()
-
-            data_processing.mutex.release()
+            self.matrix.SwapOnVSync(self.plot_objects())
+            data_processing.wrt.release()
 
             count += 1
 
@@ -179,14 +175,18 @@ class FlightTracker():
 
 
     def plot_aircraft_icons(self, x_pos, y_pos, canvas, aircraft):
-        tracks = [0, 45, 90, 135, 180, 225, 270, 315, 360]
-        tracks = np.array(tracks)
+        # The tracks in degrees correspoinding to the different icons
+        tracks = np.array([0, 45, 90, 135, 180, 225, 270, 315, 360])
+
+        # Calculate the nearest value in tracks to the actual track of the aircraft 
         nearest_track_ind = np.argmin(np.absolute(tracks - aircraft.track))
+        # If the nearest index is 360 set the track to 0, since they are the same
         if nearest_track_ind == 8:
             nearest_track_ind = 0
 
         icon_format = self.icons[nearest_track_ind]
-
+    
+        # Call method to get the color of the aircraft icon based on the altitude of the aircraft
         color = self.get_color_from_altitude(aircraft.altitude)
 
         leg1 = icon_format[0]
@@ -208,7 +208,8 @@ class FlightTracker():
         return canvas
 
     def shutdown(self):
-        self.shutdown_data_processing.flag = True
+        self.receive_data_thread.stop()
+        self.process_data_thread.stop()
         self.receive_data_thread.join()
         self.process_data_thread.join()
 
