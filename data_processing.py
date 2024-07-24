@@ -6,8 +6,6 @@ from typing import Dict
 import time
 
 wrt = threading.Semaphore()
-mutex = threading.Semaphore()
-reader_count = 0
 
 class Aircraft_Table():
     def __init__(self):

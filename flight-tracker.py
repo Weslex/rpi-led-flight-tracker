@@ -6,6 +6,7 @@ import socket
 import geopy.distance
 import time
 import traceback
+from PIL import Image, ImageDraw, ImageFont
 """
     - The first problem to tackle is going to be getting the aircraft currently
     being detected and ploting where they should be located on the 128x128 
@@ -31,13 +32,23 @@ class FlightTrackerConfig():
         self.cols_per_display : int = 64
 
         # Flight tracking configuration
+        self.path_to_static_map : str = "static/static_map.png"
         self.dump1090_host: str = 'localhost'
         self.dump1090_port : int = 30003
         self.base_latitude = 35.852598
         self.base_longitude = -86.389409
         self.mapping_box_width_mi: float = 50.0
         self.mapping_box_height_mi: float = 50.0
-        self.icons = (((1, 1), (-1, 1)), ((-1, 0), (0, 1)), ((-1, -1), (-1, 1)), ((0, -1), (-1, 0)), ((1, -1), (-1, -1)), ((1, 0), (0, -1)), ((1, 1), (1, -1)), ((1, 0), (0, 1)))
+        self.icons = (
+                ((1, 1), (-1, 1)),
+                ((-1, 0), (0, 1)), 
+                ((-1, -1), (-1, 1)),
+                ((0, -1), (-1, 0)),
+                ((1, -1), (-1, -1)),
+                ((1, 0), (0, -1)),
+                ((1, 1), (1, -1)),
+                ((1, 0), (0, 1))
+                )
 
         self.airports = ((35.8786583,-86.3774708), (36.0089703,-86.5200897))
 
@@ -114,7 +125,7 @@ class FlightTracker():
 
         return (x_pos, y_pos) 
     
-    def plot_objects(self):
+    def create_canvas(self):
         # Alternate between two different frame canvases
         if not self.use_second_canvas:
             canvas = self.canvas_0
@@ -122,19 +133,15 @@ class FlightTracker():
             canvas = self.canvas_1
 
         canvas.Clear()
-        for icao_code in self.aircraft_table.aircraft_table.keys():
-            aircraft = self.aircraft_table.aircraft_table[icao_code]
-            pos = self.latlon_to_xy(aircraft.latitude, aircraft.longitude)
 
-            if pos[0] >= 0 and pos[1] >= 0:
-                self.plot_aircraft_icons(pos[0], pos[1], canvas, aircraft)
+        frame = self.generate_frame()
+
+        canvas.SetImage(frame)
 
         self.use_second_canvas = not self.use_second_canvas
 
         return canvas
 
-    def plot_non_aircraft(self, canvas):
-        pass
 
     def get_color_from_altitude(self, alt):
         #colors = ((255, 0, 0), (255, 255, 0), (0, 255, 0), (0, 255, 255), (0, 255, 0), (255, 255, 0))
@@ -160,12 +167,61 @@ class FlightTracker():
                 alt_prop = 1.0
 
             return (int(255 * alt_prop), 0, 255)
+
+    def generate_frame(self):
+        frame = Image.new("RGB", (128, 128))
+
+        frame_draw = ImageDraw.Draw(frame)
+
+        for icao_code in self.aircraft_table.aircraft_table.keys():
+            aircraft = self.aircraft_table.aircraft_table[icao_code]
+            pos = self.latlon_to_xy(aircraft.latitude, aircraft.latitude)
+
+            if pos[0] >= 0 and pos[1] >= 0:
+                self.draw_aircraft(pos[0], pos[1], frame_draw, aircraft)
+
+        return frame
+
+
+
+    def draw_aircraft(self, x_pos, y_pos, frame_draw: ImageDraw.ImageDraw, aircraft):
+        # The tracks in degrees correspoinding to the different icons
+        tracks = np.array([0, 45, 90, 135, 180, 225, 270, 315, 360])
+
+        # Calculate the nearest value in tracks to the actual track of the aircraft 
+        nearest_track_ind = np.argmin(np.absolute(tracks - aircraft.track))
+        # If the nearest index is 360 set the track to 0, since they are the same
+        if nearest_track_ind == 8:
+            nearest_track_ind = 0
+
+        icon_format = self.icons[nearest_track_ind]
+    
+        # Call method to get the color of the aircraft icon based on the altitude of the aircraft
+        color = self.get_color_from_altitude(aircraft.altitude)
+
+        leg1 = icon_format[0]
+        leg2 = icon_format[1]
+
+        x1 = leg1[0] + x_pos
+        x2 = leg2[0] + x_pos
+        y1 = leg1[1] + y_pos
+        y2 = leg2[1] + y_pos
+
+        frame_draw.point((x_pos, y_pos), (color[0], color[1], color[2]))
         
+        if x1 >= 0 and x1 < self.cols and y1 >= 0 and y1 < self.rows:
+            frame_draw.point((x1, y1), (color[0], color[1], color[2]))
+
+        if x2 >= 0 and x2 < self.cols and y2 >= 0 and y2 < self.rows:
+            frame_draw.point((x2, y2), (color[0], color[1], color[2]))
+
+        return frame_draw
+
     def run_display(self):
         count = 0
         while True:
             data_processing.wrt.acquire()
-            self.matrix.SwapOnVSync(self.plot_objects())
+            self.matrix.SwapOnVSync(self.create_canvas())
             data_processing.wrt.release()
 
             count += 1
