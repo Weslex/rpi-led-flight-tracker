@@ -33,6 +33,7 @@ class FlightTrackerConfig():
 
         # Flight tracking configuration
         self.path_to_static_map : str = "static/static_map.png"
+        self.path_to_font : str = "static/font.ttf"
         self.dump1090_host: str = 'localhost'
         self.dump1090_port : int = 30003
         self.base_latitude = 35.852598
@@ -50,7 +51,7 @@ class FlightTrackerConfig():
                 ((1, 0), (0, 1))
                 )
 
-        self.airports = ((35.8786583,-86.3774708), (36.0089703,-86.5200897))
+        self.airports = ((35.8786583,-86.3774708, 'MBT'), (36.0089703,-86.5200897), 'MQY')
 
 class FlightTracker():
     def __init__(self, config):
@@ -97,6 +98,9 @@ class FlightTracker():
         dist_to_corner = (((self.mapping_box_width/2) ** 2) + ((self.mapping_box_height/2) ** 2)) ** 0.5
         self.reference_point = geopy.distance.distance(miles=dist_to_corner).destination((self.center_lat, self.center_lon), bearing=225)
         self.icons = config.icons
+        self.airports = config.airports
+
+        self.font = ImageFont.truetype(config.path_to_font, 5)
         
         
     def start_data_processing(self):
@@ -180,8 +184,10 @@ class FlightTracker():
             if pos[0] >= 0 and pos[1] >= 0:
                 self.draw_aircraft(pos[0], pos[1], frame_draw, aircraft)
 
-        return frame
+        self.draw_airports(frame_draw)
 
+
+        return frame
 
 
     def draw_aircraft(self, x_pos, y_pos, frame_draw: ImageDraw.ImageDraw, aircraft):
@@ -217,6 +223,20 @@ class FlightTracker():
 
         return frame_draw
 
+    def draw_airports(self, frame_draw: ImageDraw.ImageDraw):
+        
+        for airport in self.airports:
+            pos = self.latlon_to_xy(airport[0], airport[1])
+
+            if pos[0] >= 0 and pos[1] >= 0:
+                frame_draw.point(pos, (255, 255, 255))
+
+                frame_draw.text((pos[0], pos[1]-1), airport[2], (255, 255, 255))
+
+        return frame_draw
+
+
+
     def run_display(self):
         count = 0
         while True:
@@ -230,40 +250,6 @@ class FlightTracker():
                 self.aircraft_table.purge_old_aircraft()
                 count = 0 
             time.sleep(1)
-
-
-    def plot_aircraft_icons(self, x_pos, y_pos, canvas, aircraft):
-        # The tracks in degrees correspoinding to the different icons
-        tracks = np.array([0, 45, 90, 135, 180, 225, 270, 315, 360])
-
-        # Calculate the nearest value in tracks to the actual track of the aircraft 
-        nearest_track_ind = np.argmin(np.absolute(tracks - aircraft.track))
-        # If the nearest index is 360 set the track to 0, since they are the same
-        if nearest_track_ind == 8:
-            nearest_track_ind = 0
-
-        icon_format = self.icons[nearest_track_ind]
-    
-        # Call method to get the color of the aircraft icon based on the altitude of the aircraft
-        color = self.get_color_from_altitude(aircraft.altitude)
-
-        leg1 = icon_format[0]
-        leg2 = icon_format[1]
-
-        x1 = leg1[0] + x_pos
-        x2 = leg2[0] + x_pos
-        y1 = leg1[1] + y_pos
-        y2 = leg2[1] + y_pos
-
-        canvas.SetPixel(x_pos, y_pos, color[0], color[1], color[2])
-        
-        if x1 >= 0 and x1 < self.cols and y1 >= 0 and y1 < self.rows:
-            canvas.SetPixel(x1, y1, color[0], color[1], color[2])
-
-        if x2 >= 0 and x2 < self.cols and y2 >= 0 and y2 < self.rows:
-            canvas.SetPixel(x2, y2, color[0], color[1], color[2])
-
-        return canvas
 
     def shutdown(self):
         self.receive_data_thread.stop()
