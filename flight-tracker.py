@@ -101,6 +101,7 @@ class FlightTracker():
         self.airports = config.airports
 
         self.font = ImageFont.truetype(config.path_to_font, 5)
+        self.path_to_static_map = self.path_to_static_map
         
         
     def start_data_processing(self):
@@ -173,13 +174,13 @@ class FlightTracker():
             return (int(255 * alt_prop), 0, 255)
 
     def generate_frame(self):
-        frame = Image.new("RGB", (128, 128))
+        frame = Image.open(self.path_to_static_map)
 
         frame_draw = ImageDraw.Draw(frame)
 
         for icao_code in self.aircraft_table.aircraft_table.keys():
             aircraft = self.aircraft_table.aircraft_table[icao_code]
-            pos = self.latlon_to_xy(aircraft.latitude, aircraft.latitude)
+            pos = self.latlon_to_xy(aircraft.latitude, aircraft.longitude)
 
             if pos[0] >= 0 and pos[1] >= 0:
                 self.draw_aircraft(pos[0], pos[1], frame_draw, aircraft)

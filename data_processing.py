@@ -18,7 +18,6 @@ class Aircraft_Table():
         msg_l = msg.split(",")
         cur_hex = msg_l[4] 
         if self.aircraft_table.get(cur_hex) is None:
-            print("New Aircraft " + cur_hex)
             self.aircraft_table[cur_hex] = Aircraft(cur_hex)
 
 
