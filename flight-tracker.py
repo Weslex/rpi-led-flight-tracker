@@ -13,6 +13,8 @@ from PIL import Image, ImageDraw, ImageFont
 
     
 """
+
+# This is a change
 class FlightTrackerConfig():
     def __init__(self):
         # Display configuration 
