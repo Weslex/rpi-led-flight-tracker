@@ -53,10 +53,6 @@ class FlightTrackerConfig:
             ((1, 0), (0, 1)),
         )
 
-        self.airports = (
-            (35.8786583, -86.3774708, "MBT"),
-            (36.0089703, -86.5200897, "MQY"),
-        )
 
 
 class FlightTracker:
@@ -64,6 +60,9 @@ class FlightTracker:
         self.config = config
         self.rows = config.total_rows
         self.cols = config.total_cols
+
+        self.static_map = Image.open(config.path_to_static_map)
+        self.static_map = self.static_map.convert("RGB")
 
         # Set up RGBMatrixOptions attributes
         self.display_config = RGBMatrixOptions()
@@ -127,7 +126,6 @@ class FlightTracker:
         self.airports = config.airports
 
         self.font = ImageFont.truetype(config.path_to_font, 5)
-        self.path_to_static_map: str = config.path_to_static_map
 
     def start_data_processing(self):
         self.rdl_soc.connect((self.config.dump1090_host, self.config.dump1090_port))
@@ -202,13 +200,12 @@ class FlightTracker:
             return (int(255 * alt_prop), 0, 255)
 
     def generate_frame(self):
-        frame = Image.new("RGB", (self.cols, self.rows))
+        frame = self.static_map.copy()
 
         frame_draw = ImageDraw.Draw(frame)
 
-        self.draw_airports(frame_draw)
         closest_dist = self.rows
-        closest: data_processing.Aircraft
+        closest: data_processing.Aircraft | None = None
 
         for icao_code in self.aircraft_table.aircraft_table.keys():
             aircraft = self.aircraft_table.aircraft_table[icao_code]
@@ -225,7 +222,8 @@ class FlightTracker:
                     closest = self.aircraft_table.aircraft_table[icao_code]
                     closest_dist = dist_to_center
 
-        self.draw_info_on_aircraft(closest, frame_draw)
+        if closest:
+            self.draw_info_on_aircraft(closest, frame_draw)
 
         return frame
 
@@ -261,26 +259,12 @@ class FlightTracker:
             frame_draw.point((x2, y2), (color[0], color[1], color[2]))
         return frame_draw
 
-    def draw_airports(self, frame_draw: ImageDraw.ImageDraw):
-
-        for airport in self.airports:
-            pos = self.latlon_to_xy(airport[0], airport[1])
-
-            if pos[0] >= 0 and pos[1] >= 0:
-                frame_draw.point(pos, (255, 255, 255))
-                frame_draw.point((pos[0] - 1, pos[1]), (255, 255, 255))
-                frame_draw.point((pos[0] + 1, pos[1]), (255, 255, 255))
-                frame_draw.point((pos[0], pos[1] - 1), (255, 255, 255))
-                frame_draw.point((pos[0], pos[1] + 1), (255, 255, 255))
-
-        return frame_draw
-
     def draw_info_on_aircraft(
         self, aircraft: data_processing.Aircraft, frame_draw: ImageDraw.ImageDraw
     ):
-        anchor_pos = (1, self.rows - 6)
-        txt = f"{aircraft.call_sign} Track: {aircraft.track} Alt: {aircraft.altitude} GS: {aircraft.ground_speed}"
-        frame_draw.text(anchor_pos, txt, (128, 128, 128), self.font)
+        anchor_pos = (1, self.rows - 11)
+        txt = f"{aircraft.call_sign} {aircraft.track} {aircraft.altitude} {aircraft.ground_speed}"
+        frame_draw.text(anchor_pos, txt, (255, 255, 255), self.font)
 
         return frame_draw
 
