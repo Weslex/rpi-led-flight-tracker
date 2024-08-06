@@ -24,7 +24,7 @@ class FlightTrackerConfig:
         # Display configuration
         self.total_rows: int = 128
         self.total_cols: int = 128
-        self.gpio_slowdown: int = 4
+        self.gpio_slowdown: int = 3
         self.pwm_dither_bits: int = 2
         self.pwm_bits: int = 11
         self.chain_length: int = 4
@@ -34,7 +34,7 @@ class FlightTrackerConfig:
         self.cols_per_display: int = 64
 
         # Flight tracking configuration
-        self.path_to_static_map: str = "MidTN_static_map.png"
+        self.path_to_static_map: str = "/home/wesleymitchell/rpi-led-flight-tracker/MidTN_static_map.png"
         self.path_to_font: str = "Small_Font.ttf"
         self.dump1090_host: str = "localhost"
         self.dump1090_port: int = 30003
@@ -123,7 +123,6 @@ class FlightTracker:
        
 
         self.icons = config.icons
-        self.airports = config.airports
 
         self.font = ImageFont.truetype(config.path_to_font, 5)
 
