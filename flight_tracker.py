@@ -1,4 +1,5 @@
 from rpi_led_matrix.bindings.python.rgbmatrix import RGBMatrix, RGBMatrixOptions
+from static.static_map_generation import StaticMap
 import numpy as np
 import data_processing
 from collections import deque
@@ -8,6 +9,7 @@ import time
 import traceback
 from PIL import Image, ImageDraw, ImageFont
 import sys
+
 
 sys.path.append("/usr/share/fonts/truetype/freefont/")
 
@@ -34,7 +36,7 @@ class FlightTrackerConfig:
         self.cols_per_display: int = 64
 
         # Flight tracking configuration
-        self.path_to_static_map: str = "/home/wesleymitchell/rpi-led-flight-tracker/MidTN_static_map.png"
+        self.path_to_static_map: str = ""
         self.path_to_font: str = "Small_Font.ttf"
         self.dump1090_host: str = "localhost"
         self.dump1090_port: int = 30003
@@ -54,15 +56,11 @@ class FlightTrackerConfig:
         )
 
 
-
 class FlightTracker:
     def __init__(self, config):
         self.config = config
         self.rows = config.total_rows
         self.cols = config.total_cols
-
-        self.static_map = Image.open(config.path_to_static_map)
-        self.static_map = self.static_map.convert("RGB")
 
         # Set up RGBMatrixOptions attributes
         self.display_config = RGBMatrixOptions()
@@ -74,14 +72,6 @@ class FlightTracker:
         self.display_config.chain_length = config.chain_length
         self.display_config.parallel = config.parallel
         self.display_config.pixel_mapper_config = config.pixel_mapper_config
-
-        # Create matrix object
-        self.matrix: RGBMatrix = RGBMatrix(options=self.display_config)
-
-        # Create two frame canvases for double buffering
-        self.canvas_0 = self.matrix.CreateFrameCanvas()
-        self.canvas_1 = self.matrix.CreateFrameCanvas()
-        self.use_second_canvas = False
 
         # Aircraft table to record data on each aircraft
         self.aircraft_table = data_processing.Aircraft_Table()
@@ -110,7 +100,6 @@ class FlightTracker:
             miles=dist_to_corner
         ).destination((self.center_lat, self.center_lon), bearing=225)
 
- 
         self.opposite_reference_point = geopy.distance.distance(
             miles=dist_to_corner
         ).destination((self.center_lat, self.center_lon), bearing=45)
@@ -120,16 +109,34 @@ class FlightTracker:
         self.max_lon = self.opposite_reference_point.longitude
         self.min_lon = self.reference_point.longitude
 
-       
-
         self.icons = config.icons
 
         self.font = ImageFont.truetype(config.path_to_font, 5)
+
+        # Create the static map
+        self.static_map = StaticMap(
+            (self.mapping_box_height, self.mapping_box_width),
+            (self.rows, self.cols),
+            geopy.Point(self.center_lat, self.center_lon),
+        ).image
+
+        self.static_map.convert('RGB')
+
+        
+
+        # Create matrix object
+        self.matrix: RGBMatrix = RGBMatrix(options=self.display_config)
+
+        # Create two frame canvases for double buffering
+        self.canvas_0 = self.matrix.CreateFrameCanvas()
+        self.canvas_1 = self.matrix.CreateFrameCanvas()
+        self.use_second_canvas = False
 
     def start_data_processing(self):
         self.rdl_soc.connect((self.config.dump1090_host, self.config.dump1090_port))
         self.receive_data_thread.start()
         self.process_data_thread.start()
+
     """
     def latlon_to_xy(self, lat: float, lon: float):
 
@@ -156,11 +163,12 @@ class FlightTracker:
 
         return (x_pos, y_pos)
     """
-    
+
     """
         This is an extremely naive projection.
         
     """
+
     def latlon_to_xy(self, lat: float, lon: float):
         lat_dif = abs(self.max_lat - self.min_lat)
         lon_dif = abs(self.max_lon - self.min_lon)
@@ -179,7 +187,7 @@ class FlightTracker:
 
         if y < 0 or y >= self.rows:
             return -1, -1
-        
+
         return x, y
 
     def create_canvas(self):
