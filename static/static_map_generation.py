@@ -93,7 +93,7 @@ class StaticMap:
 
     def draw_runway(self, end1: tuple[int, int], end2: tuple[int, int], frame_draw: ImageDraw.ImageDraw):
         if end1[0] >= 0 and end1[0] >= 0 and end2[0] >= 0 and end2[1] >= 0:
-            frame_draw.line([end1, end2], fill=(255, 255, 255))
+            frame_draw.line([end1, end2], fill=(128, 128, 128))
 
 
     def is_visible(self, lat: float, lon: float):
