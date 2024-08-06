@@ -34,8 +34,8 @@ class FlightTrackerConfig:
         self.cols_per_display: int = 64
 
         # Flight tracking configuration
-        self.path_to_static_map: str = "static/static_map.png"
-        self.path_to_font: str = "static/font.ttf"
+        self.path_to_static_map: str = "MidTN_static_map.png"
+        self.path_to_font: str = "Small_Font.ttf"
         self.dump1090_host: str = "localhost"
         self.dump1090_port: int = 30003
         self.base_latitude = 35.852598
@@ -117,8 +117,8 @@ class FlightTracker:
 
         self.max_lat = self.opposite_reference_point.latitude
         self.min_lat = self.reference_point.latitude
-        self.max_long = self.opposite_reference_point.longitude
-        self.min_long = self.reference_point.longitude
+        self.max_lon = self.opposite_reference_point.longitude
+        self.min_lon = self.reference_point.longitude
 
        
 
@@ -131,7 +131,7 @@ class FlightTracker:
         self.rdl_soc.connect((self.config.dump1090_host, self.config.dump1090_port))
         self.receive_data_thread.start()
         self.process_data_thread.start()
-
+    """
     def latlon_to_xy(self, lat: float, lon: float):
 
         # check if the aircraft is outside of the mapping box
@@ -156,6 +156,32 @@ class FlightTracker:
             return (-1, -1)
 
         return (x_pos, y_pos)
+    """
+    
+    """
+        This is an extremely naive projection.
+        
+    """
+    def latlon_to_xy(self, lat: float, lon: float):
+        lat_dif = abs(self.max_lat - self.min_lat)
+        lon_dif = abs(self.max_lon - self.min_lon)
+        x_prop = abs(lon - self.min_lon) / lon_dif
+        y_prop = abs(lat - self.min_lat) / lat_dif
+
+        x_deci = x_prop * self.cols
+        y_deci = y_prop * self.rows
+
+        x = round(x_deci)
+        y = round(y_deci)
+        y = self.rows - y
+
+        if x < 0 or x >= self.cols:
+            return -1, -1
+
+        if y < 0 or y >= self.rows:
+            return -1, -1
+        
+        return x, y
 
     def create_canvas(self):
         # Alternate between two different frame canvases
@@ -215,7 +241,7 @@ class FlightTracker:
                 self.draw_aircraft(pos[0], pos[1], frame_draw, aircraft)
 
                 dist_to_center = (
-                    (pos[0] - (self.cols / 2) ** 2) + (pos[1] - (self.rows / 2) ** 2)
+                    ((self.cols / 2) - pos[0]) ** 2 + ((self.rows / 2) - pos[1]) ** 2
                 ) ** 0.5
 
                 if dist_to_center < closest_dist:
