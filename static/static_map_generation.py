@@ -27,6 +27,8 @@ class StaticMap:
         runways_data_path: str = "data/runways.csv"
     ):
         self.img_dims = map_dimensions_px
+
+        self.runways_data_path = runways_data_path
        
         # pythagorean thoream 
         corner_dist = (((map_dimensions_mi[0]/2) ** 2) + ((map_dimensions_mi[1]/2) ** 2)) ** 0.5
@@ -54,7 +56,7 @@ class StaticMap:
         frame_draw = ImageDraw.ImageDraw(frame)
 
         # Get list of runways in view
-        runways = self.get_runways("../runways.csv")
+        runways = self.get_runways(self.runways_data_path)
 
         for runway in runways:
             end1_lat = float(runway["LAT1_DECIMAL"])
