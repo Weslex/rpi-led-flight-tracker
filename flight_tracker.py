@@ -7,14 +7,13 @@ import socket
 import geopy.distance
 import time
 import traceback
-from PIL import Image, ImageDraw, ImageFont
+from PIL import ImageDraw, ImageFont
 import sys
 
 
 sys.path.append("/usr/share/fonts/truetype/freefont/")
 
 """
-
     
 """
 
