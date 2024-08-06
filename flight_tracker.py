@@ -14,7 +14,6 @@ import sys
 sys.path.append("/usr/share/fonts/truetype/freefont/")
 
 """
-    Display Center Cordinates: 35.852598, -86.389409
 
     
 """
