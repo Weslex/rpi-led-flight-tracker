@@ -18,7 +18,6 @@ sys.path.append("/usr/share/fonts/truetype/freefont/")
 """
 
 
-# This is a change
 class FlightTrackerConfig:
     def __init__(self):
         # Display configuration
@@ -38,8 +37,9 @@ class FlightTrackerConfig:
         self.path_to_font: str = "Small_Font.ttf"
         self.dump1090_host: str = "localhost"
         self.dump1090_port: int = 30003
-        self.base_latitude = 35.852598
-        self.base_longitude = -86.389409
+        # Defualt to centering around BNA
+        self.base_latitude = 36.1244750
+        self.base_longitude = -86.6781806
         self.mapping_box_width_mi: float = 50.0
         self.mapping_box_height_mi: float = 50.0
         self.icons = (
@@ -118,9 +118,7 @@ class FlightTracker:
             geopy.Point(self.center_lat, self.center_lon),
         ).image
 
-        self.static_map.convert('RGB')
-
-        
+        self.static_map.convert("RGB")
 
         # Create matrix object
         self.matrix: RGBMatrix = RGBMatrix(options=self.display_config)
@@ -208,34 +206,60 @@ class FlightTracker:
     def get_color_from_altitude(self, alt):
         # colors = ((255, 0, 0), (255, 255, 0), (0, 255, 0), (0, 255, 255), (0, 255, 0), (255, 255, 0))
 
-        if alt < 1000:
-            return (255, int((alt / 1000) * 255), 0)
+        key_alts = np.array([0, 1000, 5000, 20000, 40000, 60000])
+        key_diff = key_alts[1:] - key_alts[:-1]
 
-        if alt < 5000:
-            alt_prop = (alt - 1000) / 5000
-            return (int(255 - (alt_prop * 255)), 255, 0)
+        # Color Order:
+        #   (255, 0 to 255, 0)
+        #   (255 to 0, 255, 0)
+        #   (0, 255, 0 to 255)
+        #   (0, 255 to 0, 255)
+        #   (0 to 255, 0, 255)
 
-        if alt < 10000:
-            alt_prop = (alt - 5000) / 5000
-            return (0, 255, int(alt_prop * 255))
+        scale_8bit = lambda val, max_val: int(255 * (val / max_val))
 
-        if alt < 30000:
-            alt_prop = (alt - 10000) / 20000
-            return (0, int(255 - (alt_prop * 255)), 255)
+        # Special case for if the alitude is 0,
+        # this genenrally means no altitude has been read or the aircraft is on the ground
+        if alt == 0:
+            return (64, 64, 64)
+
+        if alt < key_alts[1]:
+            var_channel = scale_8bit(alt, key_diff[0])
+            return (255, var_channel, 0)
+
+        if alt < key_alts[2]:
+            alt = alt - key_diff[0]
+            var_channel = scale_8bit(alt, key_diff[1])
+            var_channel = 255 - var_channel
+            return (var_channel, 255, 0)
+
+        if alt < key_alts[3]:
+            alt = alt - key_diff[1] 
+            var_channel = scale_8bit(alt, key_diff[2])
+            return (0, 255, var_channel)
+
+        if alt < key_alts[4]:
+            alt = alt - key_diff[2] 
+            var_channel = scale_8bit(alt, key_diff[3])
+            var_channel = 255 - var_channel
+            return (0, var_channel, 255)
 
         else:
-            alt_prop = (alt - 30000) / 60000
-            if alt_prop > 1:
-                alt_prop = 1.0
+            alt = alt - key_diff[3]
+            var_channel = scale_8bit(alt, key_diff[4])
 
-            return (int(255 * alt_prop), 0, 255)
+            if var_channel > 255:
+                var_channel = 255
+
+            return (var_channel, 0, 255)
 
     def generate_frame(self):
         frame = self.static_map.copy()
 
         frame_draw = ImageDraw.Draw(frame)
 
-        closest_dist = self.rows
+        # variables to store the aircraft closest to device
+        closest_dist = self.rows + self.cols
         closest: data_processing.Aircraft | None = None
 
         for icao_code in self.aircraft_table.aircraft_table.keys():
@@ -306,11 +330,7 @@ class FlightTracker:
             self.matrix.SwapOnVSync(self.create_canvas())
             data_processing.wrt.release()
 
-            count += 1
-
-            if count == 60:
-                self.aircraft_table.purge_old_aircraft()
-                count = 0
+            self.aircraft_table.purge_old_aircraft()
             time.sleep(1)
 
     def shutdown(self):
