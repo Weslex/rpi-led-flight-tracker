@@ -279,8 +279,8 @@ class FlightTracker:
                     closest = self.aircraft_table.aircraft_table[icao_code]
                     closest_dist = dist_to_center
 
-        if closest:
-            self.draw_info_on_aircraft(closest, frame_draw)
+                self.draw_info_on_aircraft(aircraft, frame_draw)
+
 
         return frame
 
