@@ -1,6 +1,7 @@
 import csv
 from geopy import distance, Point
 from PIL import Image, ImageDraw, ImageFont
+import geopy
 from geopy.units import miles
 
 """
@@ -24,7 +25,9 @@ class StaticMap:
         map_dimensions_px: tuple[int, int],
         center_cord: Point,
         img_path: str | None = None,
-        runways_data_path: str = "data/runways.csv"
+        runways_data_path: str = "runways.csv",
+        runway_color: tuple[int, int, int] = (128, 128, 128),
+
     ):
         self.img_dims = map_dimensions_px
 
@@ -41,6 +44,8 @@ class StaticMap:
 
         self.max_lon = max(ne_corner.longitude, se_corner.longitude)
         self.min_lon = min(ne_corner.longitude, se_corner.longitude)
+
+        self.runway_color = runway_color
 
 
         if img_path:
@@ -68,6 +73,7 @@ class StaticMap:
             end1_xy = self.latlon_to_xy(end1_lat, end1_lon)
             end2_xy = self.latlon_to_xy(end2_lat, end2_lon)
 
+
             self.draw_runway(end1_xy, end2_xy, frame_draw)
 
 
@@ -92,8 +98,8 @@ class StaticMap:
         return in_view
 
     def draw_runway(self, end1: tuple[int, int], end2: tuple[int, int], frame_draw: ImageDraw.ImageDraw):
-        if end1[0] >= 0 and end1[0] >= 0 and end2[0] >= 0 and end2[1] >= 0:
-            frame_draw.line([end1, end2], fill=(128, 128, 128))
+        if end1[0] >= 0 and end1[1] >= 0 and end2[0] >= 0 and end2[1] >= 0:
+            frame_draw.line([end1, end2], fill=self.runway_color)
 
 
     def is_visible(self, lat: float, lon: float):
@@ -126,5 +132,3 @@ class StaticMap:
             return -1, -1
         
         return x, y
-# 35.852598, -86.389409
-static_map = StaticMap((3500, 3500), (1280, 1280), Point(39.833333, -98.583333))

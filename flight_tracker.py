@@ -35,6 +35,7 @@ class FlightTrackerConfig:
         # Flight tracking configuration
         self.path_to_static_map: str = ""
         self.path_to_font: str = "Small_Font.ttf"
+        self.path_to_runways: str = "runways.csv"
         self.dump1090_host: str = "localhost"
         self.dump1090_port: int = 30003
         # Defualt to centering around BNA
@@ -116,6 +117,7 @@ class FlightTracker:
             (self.mapping_box_height, self.mapping_box_width),
             (self.rows, self.cols),
             geopy.Point(self.center_lat, self.center_lon),
+            runways_data_path=config.path_to_runways
         ).image
 
         self.static_map.convert("RGB")
@@ -166,10 +168,10 @@ class FlightTracker:
     """
 
     def latlon_to_xy(self, lat: float, lon: float):
-        lat_dif = abs(self.max_lat - self.min_lat)
-        lon_dif = abs(self.max_lon - self.min_lon)
-        x_prop = abs(lon - self.min_lon) / lon_dif
-        y_prop = abs(lat - self.min_lat) / lat_dif
+        lat_dif = self.max_lat - self.min_lat
+        lon_dif = self.max_lon - self.min_lon
+        x_prop = (lon - self.min_lon) / lon_dif
+        y_prop = (lat - self.min_lat) / lat_dif
 
         x_deci = x_prop * self.cols
         y_deci = y_prop * self.rows
@@ -206,7 +208,7 @@ class FlightTracker:
     def get_color_from_altitude(self, alt):
         # colors = ((255, 0, 0), (255, 255, 0), (0, 255, 0), (0, 255, 255), (0, 255, 0), (255, 255, 0))
 
-        key_alts = np.array([0, 1000, 5000, 20000, 40000, 60000])
+        key_alts = np.array([0, 2000, 5000, 10000, 20000, 50000])
         key_diff = key_alts[1:] - key_alts[:-1]
 
         # Color Order:
