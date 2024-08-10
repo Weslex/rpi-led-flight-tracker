@@ -320,8 +320,8 @@ class FlightTracker:
         self, aircraft: data_processing.Aircraft, frame_draw: ImageDraw.ImageDraw
     ):
         anchor_pos = self.latlon_to_xy(aircraft.latitude, aircraft.longitude)
-        txt = f"{aircraft.altitude/100}\n{aircraft.ground_speed}"
-        frame_draw.multiline_text(anchor_pos, txt, (255, 255, 255), self.font, anchor='rs')
+        txt = f"{aircraft.call_sign}"
+        frame_draw.text(anchor_pos, txt, (255, 255, 255), self.font, anchor='rs')
 
         return frame_draw
 
