@@ -5,16 +5,113 @@ from collections import deque
 from typing import Dict
 import time
 
-wrt = threading.Semaphore()
+AIRCRAFT_DICT_LOCK = threading.Lock()
 
 
 class Aircraft_Table:
-    def __init__(self):
+    def __init__(self, aircraft_timeout=60):
         # self.aircraft_table : Dict[str, Aircraft] = {}
         self.aircraft_table = {}
         self.total_messages = 0
+        self.aircraft_timeout = aircraft_timeout
 
     def process_msg(self, msg: str):
+        """
+        MSG Fields:
+        0 - Message Type - Not used, all messages are type "MSG" from dump1090
+        1 - Transmission Type - Can be used for knowing which fields will be used
+        2 - Session ID - Not used by dump1090
+        3 - Aircraft ID - Not used by dump1090
+        4 - Hex ID - ICAO hex ID of the aircraft
+        5 - Flight ID - Not used by dump1090
+        6 - Date message generated - Not used by dump1090
+        7 - Time message generated - Not used by dump1090
+        8 - Date message logged - Not used by dump1090
+        9 - Time message logged - Not used by dump1090
+        10 - Callsign
+        11 - Altitude
+        12 - Ground Speed
+        13 - Track
+        14 - Latitude
+        15 - Longitude
+        16 - Vertical Rate
+        17 - Squawk
+        18 - Alert - Flag to indicate if squawk has changed
+        19 - Emergency - Flag to indicate if emergency code has been sent
+        20 - SPI - Flag to indicate if transponder ident has been activated
+        21 - IsOnGround - Flag to indicate if the squat switch is active
+        """
+        msg_l = msg.split(",")
+
+        # Check if message has correct number of fields
+        if len(msg_l) != 22:
+            print(f"Invalid Message Received - ({msg})")
+            return
+
+        hex_id = msg_l[4]
+        callsign = msg_l[10]
+        altitude = msg_l[11]
+        ground_speed = msg_l[12]
+        track = msg_l[13]
+        latitude = msg_l[14]
+        longitude = msg_l[15]
+        vertical_rate = msg_l[16]
+        squawk = msg_l[17]
+        alert = msg_l[18]
+        emergency = msg_l[19]
+        spi = msg_l[20]
+        is_on_ground = msg_l[21]
+
+        # All messages should have a hex id
+        if not hex_id:
+            print(f"Invalid Message Received - ({msg})")
+            return
+
+        aircraft = self.aircraft_table.get(hex_id)
+
+        # Create a new aircraft if it doesn't exist in the aircraft table
+        if not aircraft:
+            aircraft = Aircraft(hex_id)
+
+            # Add aircraft to table
+            self.aircraft_table[hex_id] = aircraft
+
+        if callsign:
+            aircraft.call_sign = callsign
+
+        if altitude:
+            aircraft.altitude = int(altitude)
+
+        if ground_speed:
+            aircraft.ground_speed = int(ground_speed)
+
+        if track:
+            aircraft.track = int(track)
+
+        if latitude:
+            aircraft.latitude = float(latitude)
+
+        if longitude:
+            aircraft.longitude = float(longitude)
+
+        if vertical_rate:
+            aircraft.vertical_rate = int(vertical_rate)
+
+        if squawk:
+            aircraft.squawk = squawk
+
+        if emergency:
+            aircraft.emergency = bool(emergency)
+
+        if is_on_ground:
+            aircraft.on_ground = bool(int(is_on_ground))
+
+        aircraft.updated = time.time()
+        self.total_messages += 1
+
+    """ 
+    def process_msg(self, msg: str):
+        print(msg)
         msg_l = msg.split(",")
         cur_hex = msg_l[4]
         if self.aircraft_table.get(cur_hex) is None:
@@ -77,18 +174,17 @@ class Aircraft_Table:
 
         self.total_messages += 1
 
+    """
+
     def purge_old_aircraft(self):
         cur_time = time.time()
         deletable = []
         for key in self.aircraft_table.keys():
-            if (cur_time - self.aircraft_table[key].updated) > 60:
+            if (cur_time - self.aircraft_table[key].updated) > self.aircraft_timeout:
                 deletable.append(key)
 
         for key in deletable:
             del self.aircraft_table[key]
-
-    def __iter__(self):
-        return self.aircraft_table
 
 
 class Aircraft:
@@ -105,6 +201,7 @@ class Aircraft:
         self.emergency: bool = False
         self.on_ground: bool = False
         self.updated = time.time()
+        self.pos_history: list[tuple[tuple[int, int], tuple[int, int, int]]]
 
     def serialize(self) -> list:
         return [
@@ -115,15 +212,12 @@ class Aircraft:
             self.track,
             self.latitude,
             self.longitude,
+            self.squawk,
+            self.on_ground,
         ]
 
     def __str__(self) -> str:
         return f"{self.call_sign}\t{self.altitude}\t{self.ground_speed}\t{self.latitude}\t{self.longitude}"
-
-
-class End_Tasks_Flag:
-    def __init__(self, state: bool):
-        self.flag = state
 
 
 class Receive_Data_Thread(threading.Thread):
@@ -164,9 +258,9 @@ class Process_Data_Thread(threading.Thread):
                 continue
 
             msg = self.data_queue.pop()
-            wrt.acquire()
-            self.aircraft.process_msg(msg)
-            wrt.release()
+
+            with AIRCRAFT_DICT_LOCK:
+                self.aircraft.process_msg(msg)
 
     def stop(self):
         self.exit_flag.set()
@@ -204,6 +298,8 @@ def main():
                     "Track",
                     "Latitude",
                     "Longitude",
+                    "Squawk",
+                    "On Ground",
                 ]
             )
 

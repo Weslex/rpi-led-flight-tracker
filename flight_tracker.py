@@ -54,6 +54,8 @@ class FlightTrackerConfig:
             ((1, 0), (0, 1)),
         )
 
+        self.traces: bool = True
+
 
 class FlightTracker:
     def __init__(self, config):
@@ -109,6 +111,7 @@ class FlightTracker:
         self.min_lon = self.reference_point.longitude
 
         self.icons = config.icons
+        self.traces = config.traces
 
         self.font = ImageFont.truetype(config.path_to_font, 5)
 
@@ -270,7 +273,7 @@ class FlightTracker:
 
             if pos[0] >= 0 and pos[1] >= 0:
                 self.draw_aircraft(pos[0], pos[1], frame_draw, aircraft)
-
+                
                 dist_to_center = (
                     ((self.cols / 2) - pos[0]) ** 2 + ((self.rows / 2) - pos[1]) ** 2
                 ) ** 0.5
@@ -309,11 +312,20 @@ class FlightTracker:
 
         frame_draw.point((x_pos, y_pos), (color[0], color[1], color[2]))
 
+        for point in aircraft.pos_history():
+            point_pos = point[0]
+            point_color = point[1] 
+            
+            frame_draw.point(point_pos, point_color)
+            
+
         if x1 >= 0 and x1 < self.cols and y1 >= 0 and y1 < self.rows:
             frame_draw.point((x1, y1), (color[0], color[1], color[2]))
 
         if x2 >= 0 and x2 < self.cols and y2 >= 0 and y2 < self.rows:
             frame_draw.point((x2, y2), (color[0], color[1], color[2]))
+
+        aircraft.pos_history.append(((x_pos, y_pos), color))
         return frame_draw
 
     def draw_info_on_aircraft(
@@ -328,12 +340,11 @@ class FlightTracker:
     def run_display(self):
         count = 0
         while True:
-            data_processing.wrt.acquire()
-            self.matrix.SwapOnVSync(self.create_canvas())
-            data_processing.wrt.release()
+            with data_processing.AIRCRAFT_DICT_LOCK:
+                self.matrix.SwapOnVSync(self.create_canvas())
 
-            self.aircraft_table.purge_old_aircraft()
-            time.sleep(1)
+                self.aircraft_table.purge_old_aircraft()
+                time.sleep(1)
 
     def shutdown(self):
         self.receive_data_thread.stop()
