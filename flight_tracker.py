@@ -120,7 +120,7 @@ class FlightTracker:
             (self.mapping_box_height, self.mapping_box_width),
             (self.rows, self.cols),
             geopy.Point(self.center_lat, self.center_lon),
-            runways_data_path=config.path_to_runways
+            runways_data_path=config.path_to_runways,
         ).image
 
         self.static_map.convert("RGB")
@@ -239,12 +239,12 @@ class FlightTracker:
             return (var_channel, 255, 0)
 
         if alt < key_alts[3]:
-            alt = alt - key_diff[1] 
+            alt = alt - key_diff[1]
             var_channel = scale_8bit(alt, key_diff[2])
             return (0, 255, var_channel)
 
         if alt < key_alts[4]:
-            alt = alt - key_diff[2] 
+            alt = alt - key_diff[2]
             var_channel = scale_8bit(alt, key_diff[3])
             var_channel = 255 - var_channel
             return (0, var_channel, 255)
@@ -273,7 +273,7 @@ class FlightTracker:
 
             if pos[0] >= 0 and pos[1] >= 0:
                 self.draw_aircraft(pos[0], pos[1], frame_draw, aircraft)
-                
+
                 dist_to_center = (
                     ((self.cols / 2) - pos[0]) ** 2 + ((self.rows / 2) - pos[1]) ** 2
                 ) ** 0.5
@@ -283,7 +283,6 @@ class FlightTracker:
                     closest_dist = dist_to_center
 
                 self.draw_info_on_aircraft(aircraft, frame_draw)
-
 
         return frame
 
@@ -312,12 +311,11 @@ class FlightTracker:
 
         frame_draw.point((x_pos, y_pos), (color[0], color[1], color[2]))
 
-        for point in aircraft.pos_history():
+        for point in aircraft.pos_history:
             point_pos = point[0]
-            point_color = point[1] 
-            
+            point_color = point[1]
+
             frame_draw.point(point_pos, point_color)
-            
 
         if x1 >= 0 and x1 < self.cols and y1 >= 0 and y1 < self.rows:
             frame_draw.point((x1, y1), (color[0], color[1], color[2]))
@@ -325,7 +323,12 @@ class FlightTracker:
         if x2 >= 0 and x2 < self.cols and y2 >= 0 and y2 < self.rows:
             frame_draw.point((x2, y2), (color[0], color[1], color[2]))
 
-        aircraft.pos_history.append(((x_pos, y_pos), color))
+        if (
+            len(aircraft.pos_history) == 0
+            or x_pos != aircraft.pos_history[-1][0][0]
+            or y_pos != aircraft.pos_history[-1][0][1]
+        ):
+            aircraft.pos_history.append(((x_pos, y_pos), color))
         return frame_draw
 
     def draw_info_on_aircraft(
@@ -333,7 +336,7 @@ class FlightTracker:
     ):
         anchor_pos = self.latlon_to_xy(aircraft.latitude, aircraft.longitude)
         txt = f"{aircraft.call_sign}"
-        frame_draw.text(anchor_pos, txt, (255, 255, 255), self.font, anchor='rs')
+        frame_draw.text(anchor_pos, txt, (255, 255, 255), self.font, anchor="rs")
 
         return frame_draw
 

@@ -201,7 +201,7 @@ class Aircraft:
         self.emergency: bool = False
         self.on_ground: bool = False
         self.updated = time.time()
-        self.pos_history: list[tuple[tuple[int, int], tuple[int, int, int]]]
+        self.pos_history: list[tuple[tuple[int, int], tuple[int, int, int]]] = []
 
     def serialize(self) -> list:
         return [
