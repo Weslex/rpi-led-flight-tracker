@@ -101,14 +101,16 @@ class FlightTracker:
             miles=dist_to_corner
         ).destination((self.center_lat, self.center_lon), bearing=225)
 
+        # The location of the corner opposite of the reference point
         self.opposite_reference_point = geopy.distance.distance(
             miles=dist_to_corner
         ).destination((self.center_lat, self.center_lon), bearing=45)
 
-        self.max_lat = self.opposite_reference_point.latitude
-        self.min_lat = self.reference_point.latitude
-        self.max_lon = self.opposite_reference_point.longitude
-        self.min_lon = self.reference_point.longitude
+        # Get the max/min of the latitude and longitude
+        self.max_lat = max(self.opposite_reference_point.latitude, self.reference_point.latitude)
+        self.min_lat = min(self.reference_point.latitude, self.opposite_reference_point.latitude)
+        self.max_lon = max(self.reference_point.longitude, self.opposite_reference_point.longitude)
+        self.min_lon = min(self.reference_point.longitude, self.opposite_reference_point.longitude)
 
         self.icons = config.icons
         self.traces = config.traces
@@ -138,32 +140,6 @@ class FlightTracker:
         self.receive_data_thread.start()
         self.process_data_thread.start()
 
-    """
-    def latlon_to_xy(self, lat: float, lon: float):
-
-        # check if the aircraft is outside of the mapping box
-        if lat < self.reference_point.latitude or lon < self.reference_point.longitude:
-            return (-1, -1)
-
-        # Calculate the horizontal and vertical distance from the reference point
-        dist_x = geopy.distance.distance(
-            self.reference_point, geopy.Point(self.reference_point.latitude, lon)
-        ).miles
-        dist_y = geopy.distance.distance(
-            self.reference_point, geopy.Point(lat, self.reference_point.longitude)
-        ).miles
-
-        # Round to the nearest pixel
-        x_pos = round((dist_x / self.mapping_box_width) * self.cols)
-        y_pos = round((dist_y / self.mapping_box_height) * self.rows)
-        y_pos = self.rows - y_pos
-
-        # Ensure that rounding did not put the aircraft outside of bounds
-        if x_pos >= self.cols or y_pos >= self.rows:
-            return (-1, -1)
-
-        return (x_pos, y_pos)
-    """
 
     """
         This is an extremely naive projection.
@@ -273,15 +249,6 @@ class FlightTracker:
 
             if pos[0] >= 0 and pos[1] >= 0:
                 self.draw_aircraft(pos[0], pos[1], frame_draw, aircraft)
-
-                dist_to_center = (
-                    ((self.cols / 2) - pos[0]) ** 2 + ((self.rows / 2) - pos[1]) ** 2
-                ) ** 0.5
-
-                if dist_to_center < closest_dist:
-                    closest = self.aircraft_table.aircraft_table[icao_code]
-                    closest_dist = dist_to_center
-
                 self.draw_info_on_aircraft(aircraft, frame_draw)
 
         return frame
@@ -346,8 +313,10 @@ class FlightTracker:
             with data_processing.AIRCRAFT_DICT_LOCK:
                 self.matrix.SwapOnVSync(self.create_canvas())
 
-                self.aircraft_table.purge_old_aircraft()
-                time.sleep(1)
+                if count == 60:
+                    self.aircraft_table.purge_old_aircraft()
+
+            time.sleep(1)
 
     def shutdown(self):
         self.receive_data_thread.stop()
