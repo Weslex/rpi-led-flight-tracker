@@ -8,14 +8,6 @@ import geopy.distance
 import time
 import traceback
 from PIL import ImageDraw, ImageFont
-import sys
-
-
-sys.path.append("/usr/share/fonts/truetype/freefont/")
-
-"""
-    
-"""
 
 
 class FlightTrackerConfig:
@@ -55,6 +47,7 @@ class FlightTrackerConfig:
         )
 
         self.traces: bool = True
+        self.callsign_labels = True
 
 
 class FlightTracker:
@@ -107,13 +100,22 @@ class FlightTracker:
         ).destination((self.center_lat, self.center_lon), bearing=45)
 
         # Get the max/min of the latitude and longitude
-        self.max_lat = max(self.opposite_reference_point.latitude, self.reference_point.latitude)
-        self.min_lat = min(self.reference_point.latitude, self.opposite_reference_point.latitude)
-        self.max_lon = max(self.reference_point.longitude, self.opposite_reference_point.longitude)
-        self.min_lon = min(self.reference_point.longitude, self.opposite_reference_point.longitude)
+        self.max_lat = max(
+            self.opposite_reference_point.latitude, self.reference_point.latitude
+        )
+        self.min_lat = min(
+            self.reference_point.latitude, self.opposite_reference_point.latitude
+        )
+        self.max_lon = max(
+            self.reference_point.longitude, self.opposite_reference_point.longitude
+        )
+        self.min_lon = min(
+            self.reference_point.longitude, self.opposite_reference_point.longitude
+        )
 
         self.icons = config.icons
         self.traces = config.traces
+        self.callsign_labels = config.callsign_labels
 
         self.font = ImageFont.truetype(config.path_to_font, 5)
 
@@ -124,7 +126,8 @@ class FlightTracker:
             geopy.Point(self.center_lat, self.center_lon),
             runways_data_path=config.path_to_runways,
         ).image
-
+        
+        # RGBMatrix requires RGB image format
         self.static_map.convert("RGB")
 
         # Create matrix object
@@ -139,7 +142,6 @@ class FlightTracker:
         self.rdl_soc.connect((self.config.dump1090_host, self.config.dump1090_port))
         self.receive_data_thread.start()
         self.process_data_thread.start()
-
 
     """
         This is an extremely naive projection.
@@ -249,7 +251,9 @@ class FlightTracker:
 
             if pos[0] >= 0 and pos[1] >= 0:
                 self.draw_aircraft(pos[0], pos[1], frame_draw, aircraft)
-                self.draw_info_on_aircraft(aircraft, frame_draw)
+
+                if self.callsign_labels:
+                    self.draw_callsign_labels(aircraft, frame_draw)
 
         return frame
 
@@ -276,19 +280,39 @@ class FlightTracker:
         y1 = leg1[1] + y_pos
         y2 = leg2[1] + y_pos
 
-        frame_draw.point((x_pos, y_pos), (color[0], color[1], color[2]))
-
+        prev_point = None
         for point in aircraft.pos_history:
             point_pos = point[0]
             point_color = point[1]
 
-            frame_draw.point(point_pos, point_color)
+            if prev_point: 
+                x_diff = abs(prev_point[1] - point_pos[1]) 
+                y_diff = abs(prev_point[0] - point_pos[0])
+
+                if x_diff > 1 or y_diff > 1:
+                    frame_draw.line((prev_point, point_pos), point_color)
+
+            else:
+                frame_draw.point(point_pos, point_color)
+
+            prev_point = point_pos
+
+        if prev_point:
+            x_diff = abs(prev_point[1] - x_pos)
+            y_diff = abs(prev_point[0] - y_pos)
+
+            if x_diff > 1 or y_diff > 1:
+                frame_draw.line((prev_point, (x_pos, y_pos)), color)
+
+
+        # Icon Drawing TO BE REPLACED
+        frame_draw.point((x_pos, y_pos), color)
 
         if x1 >= 0 and x1 < self.cols and y1 >= 0 and y1 < self.rows:
-            frame_draw.point((x1, y1), (color[0], color[1], color[2]))
+            frame_draw.point((x1, y1), color)
 
         if x2 >= 0 and x2 < self.cols and y2 >= 0 and y2 < self.rows:
-            frame_draw.point((x2, y2), (color[0], color[1], color[2]))
+            frame_draw.point((x2, y2), color) 
 
         if (
             len(aircraft.pos_history) == 0
@@ -296,13 +320,15 @@ class FlightTracker:
             or y_pos != aircraft.pos_history[-1][0][1]
         ):
             aircraft.pos_history.append(((x_pos, y_pos), color))
+
+
         return frame_draw
 
-    def draw_info_on_aircraft(
+    def draw_callsign_labels(
         self, aircraft: data_processing.Aircraft, frame_draw: ImageDraw.ImageDraw
     ):
         anchor_pos = self.latlon_to_xy(aircraft.latitude, aircraft.longitude)
-        txt = f"{aircraft.call_sign}"
+        txt = aircraft.call_sign.strip(' ')
         frame_draw.text(anchor_pos, txt, (255, 255, 255), self.font, anchor="rs")
 
         return frame_draw
