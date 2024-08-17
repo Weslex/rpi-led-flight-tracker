@@ -251,7 +251,6 @@ class FlightTracker:
         color = self.get_color_from_altitude(aircraft.altitude)
 
 
-
         prev_point = None
         for point in aircraft.pos_history:
             point_pos = point[0]
@@ -263,6 +262,9 @@ class FlightTracker:
 
                 if x_diff > 1 or y_diff > 1:
                     frame_draw.line((prev_point, point_pos), point_color)
+
+                else:
+                    frame_draw.point(point_pos, point_color)
 
             else:
                 frame_draw.point(point_pos, point_color)
