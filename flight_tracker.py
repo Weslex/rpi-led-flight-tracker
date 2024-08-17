@@ -1,5 +1,6 @@
 from rpi_led_matrix.bindings.python.rgbmatrix import RGBMatrix, RGBMatrixOptions
 from static.static_map_generation import StaticMap
+from icons.icons import SmallFixedWingIcon
 import numpy as np
 import data_processing
 from collections import deque
@@ -28,6 +29,7 @@ class FlightTrackerConfig:
         self.path_to_static_map: str = ""
         self.path_to_font: str = "Small_Font.ttf"
         self.path_to_runways: str = "runways.csv"
+        self.path_to_icons_dir: str = "icons/SmallFixedWingIcons/"
         self.dump1090_host: str = "localhost"
         self.dump1090_port: int = 30003
         # Defualt to centering around BNA
@@ -35,17 +37,6 @@ class FlightTrackerConfig:
         self.base_longitude = -86.6781806
         self.mapping_box_width_mi: float = 50.0
         self.mapping_box_height_mi: float = 50.0
-        self.icons = (
-            ((1, 1), (-1, 1)),
-            ((-1, 0), (0, 1)),
-            ((-1, -1), (-1, 1)),
-            ((0, -1), (-1, 0)),
-            ((1, -1), (-1, -1)),
-            ((1, 0), (0, -1)),
-            ((1, 1), (1, -1)),
-            ((1, 0), (0, 1)),
-        )
-
         self.traces: bool = True
         self.callsign_labels = True
 
@@ -113,7 +104,7 @@ class FlightTracker:
             self.reference_point.longitude, self.opposite_reference_point.longitude
         )
 
-        self.icons = config.icons
+        self.icons = SmallFixedWingIcon(config.path_to_icons_dir) 
         self.traces = config.traces
         self.callsign_labels = config.callsign_labels
 
@@ -242,8 +233,6 @@ class FlightTracker:
         frame_draw = ImageDraw.Draw(frame)
 
         # variables to store the aircraft closest to device
-        closest_dist = self.rows + self.cols
-        closest: data_processing.Aircraft | None = None
 
         for icao_code in self.aircraft_table.aircraft_table.keys():
             aircraft = self.aircraft_table.aircraft_table[icao_code]
@@ -258,27 +247,10 @@ class FlightTracker:
         return frame
 
     def draw_aircraft(self, x_pos, y_pos, frame_draw: ImageDraw.ImageDraw, aircraft):
-        # The tracks in degrees correspoinding to the different icons
-        tracks = np.array([0, 45, 90, 135, 180, 225, 270, 315, 360])
-
-        # Calculate the nearest value in tracks to the actual track of the aircraft
-        nearest_track_ind = np.argmin(np.absolute(tracks - aircraft.track))
-        # If the nearest index is 360 set the track to 0, since they are the same
-        if nearest_track_ind == 8:
-            nearest_track_ind = 0
-
-        icon_format = self.icons[nearest_track_ind]
-
         # Call method to get the color of the aircraft icon based on the altitude of the aircraft
         color = self.get_color_from_altitude(aircraft.altitude)
 
-        leg1 = icon_format[0]
-        leg2 = icon_format[1]
 
-        x1 = leg1[0] + x_pos
-        x2 = leg2[0] + x_pos
-        y1 = leg1[1] + y_pos
-        y2 = leg2[1] + y_pos
 
         prev_point = None
         for point in aircraft.pos_history:
@@ -304,15 +276,8 @@ class FlightTracker:
             if x_diff > 1 or y_diff > 1:
                 frame_draw.line((prev_point, (x_pos, y_pos)), color)
 
+        self.icons.plot_icon((x_pos, y_pos), color, aircraft.track, frame_draw)
 
-        # Icon Drawing TO BE REPLACED
-        frame_draw.point((x_pos, y_pos), color)
-
-        if x1 >= 0 and x1 < self.cols and y1 >= 0 and y1 < self.rows:
-            frame_draw.point((x1, y1), color)
-
-        if x2 >= 0 and x2 < self.cols and y2 >= 0 and y2 < self.rows:
-            frame_draw.point((x2, y2), color) 
 
         if (
             len(aircraft.pos_history) == 0

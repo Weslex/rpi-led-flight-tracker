@@ -109,78 +109,16 @@ class Aircraft_Table:
         aircraft.updated = time.time()
         self.total_messages += 1
 
-    """ 
-    def process_msg(self, msg: str):
-        print(msg)
-        msg_l = msg.split(",")
-        cur_hex = msg_l[4]
-        if self.aircraft_table.get(cur_hex) is None:
-            self.aircraft_table[cur_hex] = Aircraft(cur_hex)
-
-        self.aircraft_table[cur_hex].updated = time.time()
-
-        if msg_l[1] == "1":
-            self.aircraft_table[cur_hex].call_sign = msg_l[10]
-
-        elif msg_l[1] == "2":
-            self.aircraft_table[cur_hex].ground_speed = (
-                int(msg_l[12]) if msg_l[12] else 0
-            )
-            self.aircraft_table[cur_hex].track = int(msg_l[13]) if msg_l[13] else 0
-            self.aircraft_table[cur_hex].latitude = (
-                float(msg_l[14]) if msg_l[14] else 0.0
-            )
-            self.aircraft_table[cur_hex].longitude = (
-                float(msg_l[15]) if msg_l[15] else 0.0
-            )
-            self.aircraft_table[cur_hex].on_ground = bool(msg_l[21])
-
-        elif msg_l[1] == "3":
-            self.aircraft_table[cur_hex].altitude = int(msg_l[11]) if msg_l[11] else 0
-            self.aircraft_table[cur_hex].latitude = (
-                float(msg_l[14]) if msg_l[14] else 0.0
-            )
-            self.aircraft_table[cur_hex].longitude = (
-                float(msg_l[15]) if msg_l[15] else 0.0
-            )
-            self.aircraft_table[cur_hex].emergency = bool(msg_l[19])
-            self.aircraft_table[cur_hex].on_ground = bool(msg_l[21])
-
-        elif msg_l[1] == "4":
-            self.aircraft_table[cur_hex].ground_speed = (
-                int(msg_l[12]) if msg_l[12] else 0
-            )
-            self.aircraft_table[cur_hex].track = int(msg_l[13]) if msg_l[13] else 0
-            self.aircraft_table[cur_hex].vertical_rate = (
-                int(msg_l[16]) if msg_l[16] else 0
-            )
-
-        elif msg_l[1] == "5":
-            self.aircraft_table[cur_hex].altitude = int(msg_l[11]) if msg_l[11] else 0
-            self.aircraft_table[cur_hex].on_ground = bool(msg_l[21])
-
-        elif msg_l[1] == "6":
-            self.aircraft_table[cur_hex].altitude = int(msg_l[11]) if msg_l[11] else 0
-            self.aircraft_table[cur_hex].squawk = msg_l[17]
-            self.aircraft_table[cur_hex].emergency = bool(msg_l[19])
-            self.aircraft_table[cur_hex].on_ground = bool(msg_l[21])
-
-        elif msg_l[1] == "7":
-            self.aircraft_table[cur_hex].altitude = int(msg_l[11]) if msg_l[11] else 0
-            self.aircraft_table[cur_hex].on_ground = bool(msg_l[21])
-
-        elif msg_l[1] == "8":
-            self.aircraft_table[cur_hex].on_ground = bool(msg_l[21])
-
-        self.total_messages += 1
-
-    """
-
     def purge_old_aircraft(self):
         cur_time = time.time()
         deletable = []
         for key in self.aircraft_table.keys():
             if (cur_time - self.aircraft_table[key].updated) > self.aircraft_timeout:
+                deletable.append(key)
+
+
+            # Delete if on ground
+            if self.aircraft_table[key].on_ground:
                 deletable.append(key)
 
         for key in deletable:
