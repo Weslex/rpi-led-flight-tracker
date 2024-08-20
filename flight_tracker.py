@@ -9,10 +9,12 @@ import geopy.distance
 import time
 import traceback
 from PIL import ImageDraw, ImageFont
+import os
 
 
 class FlightTrackerConfig:
     def __init__(self):
+        cwd = os.getcwd()
         # Display configuration
         self.total_rows: int = 128
         self.total_cols: int = 128
@@ -27,9 +29,9 @@ class FlightTrackerConfig:
 
         # Flight tracking configuration
         self.path_to_static_map: str = ""
-        self.path_to_font: str = "Small_Font.ttf"
-        self.path_to_runways: str = "runways.csv"
-        self.path_to_icons_dir: str = "icons/SmallFixedWingIcons/"
+        self.path_to_font: str = cwd+"static/font.ttf"
+        self.path_to_runways: str = cwd+"static/runways.csv"
+        self.path_to_icons_dir: str = cwd+"icons/SmallFixedWingIcons/"
         self.dump1090_host: str = "localhost"
         self.dump1090_port: int = 30003
         # Defualt to centering around BNA
@@ -308,7 +310,8 @@ class FlightTracker:
 
                 if count == 60:
                     self.aircraft_table.purge_old_aircraft()
-
+                    count = 0
+            count += 1
             time.sleep(1)
 
     def shutdown(self):
