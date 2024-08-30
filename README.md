@@ -17,6 +17,8 @@ cd ..
 
 git clone https://github.com/hzeller/rpi-rgb-led-matrix && cd rpi-led-matrix
 sudo apt-get update && sudo apt-get install python3-dev cython3 -y
+sudo apt-get install librtlsdr-dev
+
 make build-python 
 sudo make install-python
 cd ..
