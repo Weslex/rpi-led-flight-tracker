@@ -14,7 +14,8 @@ import os
 
 class FlightTrackerConfig:
     def __init__(self):
-        cwd = os.getcwd()
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        
         # Display configuration
         self.total_rows: int = 128
         self.total_cols: int = 128
@@ -29,9 +30,9 @@ class FlightTrackerConfig:
 
         # Flight tracking configuration
         self.path_to_static_map: str = ""
-        self.path_to_font: str = cwd+"/static/font.ttf"
-        self.path_to_runways: str = cwd+"/static/runways.csv"
-        self.path_to_icons_dir: str = cwd+"/icons/SmallFixedWingIcons/"
+        self.path_to_font: str = os.path.join(dir_path, "/static/font.ttf")
+        self.path_to_runways: str = os.path.join("/static/runways.csv")
+        self.path_to_icons_dir: str = os.path.join("/icons/SmallFixedWingIcons/")
         self.dump1090_host: str = "localhost"
         self.dump1090_port: int = 30003
         # Defualt to centering around BNA

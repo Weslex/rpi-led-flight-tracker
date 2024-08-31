@@ -17,7 +17,7 @@ config.pixel_mapper_config = "U-mapper;Rotate:-90"
 
 # height and width of the area represented by the display
 config.mapping_box_height_mi = 20
-config.mapping_box_height_mi = 20
+config.mapping_box_width_mi = 20
 
 # latitude and longitude of the center of the display
 config.base_latitude = 30.00     # Enter the latitude of the device
