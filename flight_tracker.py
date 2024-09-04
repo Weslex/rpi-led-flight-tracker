@@ -42,6 +42,7 @@ class FlightTrackerConfig:
         self.mapping_box_height_mi: float = 50.0
         self.traces: bool = True
         self.callsign_labels = True
+        self.use_intl_runways = False
 
 
 class FlightTracker:
@@ -119,6 +120,7 @@ class FlightTracker:
             (self.rows, self.cols),
             geopy.Point(self.center_lat, self.center_lon),
             runways_data_path=config.path_to_runways,
+            intl_runways=config.use_intl_runways
         ).image
         
         # RGBMatrix requires RGB image format

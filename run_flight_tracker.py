@@ -26,6 +26,7 @@ config.base_longitude = -86.00    # Enter the longitude of the device
 # flags for setting visibility of aircraft traces and callsign
 config.traces = True
 config.callsign_labels = True
+config.use_intl_runways = False
 
 # create the flight tracker object
 tracker = FlightTracker(config)
