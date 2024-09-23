@@ -30,9 +30,9 @@ class FlightTrackerConfig:
 
         # Flight tracking configuration
         self.path_to_static_map: str = ""
-        self.path_to_font: str = os.path.join(dir_path, "/static/font.ttf")
-        self.path_to_runways: str = os.path.join("/static/runways.csv")
-        self.path_to_icons_dir: str = os.path.join("/icons/SmallFixedWingIcons/")
+        self.path_to_font: str = dir_path + "/static/font.ttf"
+        self.path_to_runways: str = dir_path + "/static/runways.csv"
+        self.path_to_icons_dir: str = dir_path + "/icons/SmallFixedWingIcons/"
         self.dump1090_host: str = "localhost"
         self.dump1090_port: int = 30003
         # Defualt to centering around BNA
